@@ -780,10 +780,6 @@ int main(int argc, char *argv[])
   if (argc == 1) {
     contlog_t i = 2;
     while (i < 1<<30) {
-#if 0
-      int n1, d1;
-      old_contlog_to_frac(i, &n1, &d1);
-#endif
       int n, d;
       contlog_to_frac(i, &n, &d);
       contlog_t j = frac_to_contlog(n, d);
