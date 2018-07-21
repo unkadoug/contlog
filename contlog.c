@@ -275,7 +275,9 @@ frac_to_contlog(contlog_t n, contlog_t d)
 
   while (frac[numer^1] != 0 && w > 0) {
     // frac[numer] > frac[numer^1]
-    int shift = FLS(frac[numer] / frac[numer^1]);
+    int shift = FLS(frac[numer]) - FLS(frac[numer^1]);
+    if (frac[numer] >= frac[numer^1] << shift)
+      ++shift;
     if (shift > w)
       break;
     w -= shift;
