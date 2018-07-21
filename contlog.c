@@ -329,85 +329,6 @@ surd_to_contlog(contlog_t n, contlog_t d, contlog_t r)
 	((T)(val) << 8*(sizeof(T)-sizeof(val))) :	\
 	(T)((val) >> 8*(sizeof(val)-sizeof(T)))))
 
-#if 0
-void
-contlog_eval(contlog_t operand[], contlog_t box[], int nDims)
-{
-  const unsigned int maxbits = 8*sizeof(contlog_t);
-  contlog_t hibit = (contlog_t)1 << (maxbits - 1);
-  unsigned int idx_n1 = 1;	/* posn in box of coeff of 1 in numerator */
-  int b, d;
-
-  for (d = 1; d < nDims; d++) {
-    int bit_d = 1 << d;
-    if (SIGNED(contlog_t)) {
-      if (operand[d] & hibit) {
-	for (b = bit_d; b < (1 << nDims); ++b, b |= bit_d)
-	  box[b] = -box[b];
-      }
-      operand[d] ^= operand[d] << 1;
-      idx_n1 ^= (operand[d] & hibit) ? 0 : bit_d;
-      operand[d] <<= 1;
-    }
-    else {
-      idx_n1 ^= (operand[d] & hibit) ? 0 : bit_d;
-      operand[d] ^= operand[d] << 1;
-    }
-  }
-
-  unsigned int zero_addends = 0;
-  while (zero_addends != (1 << nDims) - 2) {
-    for (d = 1; d < nDims; d++) {
-      int bit_d = 1 << d;
-      if (0 == operand[d]) {
-	zero_addends |= bit_d;
-	continue;
-      }
-      debug_print(operand, box, nDims);
-      unsigned int mask = zero_addends | bit_d;
-
-      /* Swap the with-operand[d] face of the box with the without-operand[d]
-       * face, and let idx_nopd identify the position of the constant
-       * coefficient of the numerator in the new without-operand[d] face.
-       */
-      unsigned int idx_nopd = idx_n1;
-      idx_n1 ^= bit_d;
-
-      /* Find the leftmost set bit position of operand[d] and shift the bit
-	 out. */
-      int shift = maxbits - FLS(operand[d]);
-      operand[d] <<= shift + 1;
-
-      /* Shift the coeffs without operand[d] and add to them the corresponding
-       * coeffs with operand[d].  If necessary, divide everything by 2 first to
-       * avoid overflow.
-       */
-      int overflow = 0;
-      for (b = mask; !overflow && b < (1 << nDims); ++b, b |= mask) {
-	contlog_t addend = box[idx_n1^b];
-	if (shift > 0) {
-	  addend += 1 << (shift - 1);
-	  addend >>= shift;
-	}
-	overflow = sum_overflows(addend, box[idx_nopd^b]);
-      }
-      shift += overflow;
-      for (b = mask; b < (1 << nDims); ++b, b |= mask) {
-	if (shift > 0) {
-	  box[idx_n1^b] += 1 << (shift - 1);
-	  box[idx_n1^b] >>= shift;
-	  box[idx_nopd^b] >>= overflow;
-	}
-	box[idx_n1^b] += box[idx_nopd^b];
-      }
-    }
-  }
-  debug_print(operand, box, nDims);
-  idx_n1 ^= zero_addends;
-  operand[0] = frac_to_contlog(box[idx_n1], box[idx_n1^1]);
-}
-#endif
-
 /*-----------------------------------------------------------------*\
  * Compute the integer square root and remainder
  */
@@ -455,14 +376,12 @@ contlog_sqrt(contlog_t operand)
   while (w > 0 && box[idx_n1] != 0) {
     debug_print(operand, box, 2);
     int prodsize = FLS(box[0]) + FLS(box[3]);
-    if (prodsize > maxbits) {
-      int shift = (prodsize - maxbits + 2) / 2;
-      for (b = 0; b < 4; ++b)
-	box[b] >>= shift;
-    }
-    contlog_t det = box[0]*box[3] - box[1]*box[2];
+    int shift = 0;
+    if (prodsize > maxbits)
+      shift = (prodsize - maxbits + 2) / 2;
+    contlog_t det = (box[0]>>shift)*(box[3]>>shift) - (box[1]>>shift)*(box[2]>>shift);
     contlog_div_t rt_nd = isqrt(det);
-    int shift = FLS((rt_nd.quot + box[idx_n1^1]) / box[idx_n1]);
+    shift = FLS(((rt_nd.quot<<shift) + box[idx_n1^1]) / box[idx_n1]);
     if (shift > w)
       break;
     w -= shift;
