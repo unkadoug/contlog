@@ -109,80 +109,24 @@ contlog_fold(contlog_t operand, contlog_t box[], int nDims)
   return &box[idx_n1];
 }
 
-contlog_t *
-contlog_fold2(contlog_t operand, contlog_t box[], int nDims)
-{
-  const unsigned int maxbits = 8*sizeof(contlog_t);
-  contlog_t hibit = (contlog_t)1 << (maxbits - 1);
-  unsigned int idx_n1;		/* posn in box of coeff of 1 in numerator */
-  int b, d = nDims - 1;
-  int bit_d = 1 << d;
-  if (SIGNED(contlog_t)) {
-    if (operand & hibit) {
-      for (b = 0; b < bit_d; ++b)
-	box[b^bit_d] = -box[b^bit_d];
-    }
-    operand ^= operand << 1;
-    idx_n1 = (operand & hibit) ? bit_d : 0;
-    operand <<= 1;
-  }
-  else {
-    idx_n1 = (operand & hibit) ? bit_d : 0;
-    operand ^= operand << 1;
-  }
-
-  int sum_shifts = 0;
-  while (operand != 0) {
-    debug_print(operand, box, nDims);
-
-    /* Swap the with-d face of the box with the without-d
-     * face, and let idx_nopd identify the position of the constant
-     * coefficient of the numerator in the new without-d face.
-     */
-    unsigned int idx_nopd = idx_n1;
-    idx_n1 ^= bit_d;
-
-    /* Find the leftmost set bit position of operand and shift the bit
-       out. */
-    int shift = maxbits - FLS(operand);
-    operand <<= shift + 1;
-    sum_shifts += shift + 1;
-
-    /* Shift the coeffs without operand and add to them the corresponding
-     * coeffs with operand.  If necessary, divide everything by 2 first to
-     * avoid overflow.
-     */
-    for (b = 0; b < bit_d; ++b)
-      box[idx_n1^b] += (box[idx_nopd^b] <<= shift);
-  }
-  int shift = maxbits - sum_shifts - 1;
-  for (b = 0; b < bit_d; ++b)
-    box[idx_n1^b] <<= shift;
-  debug_print(operand, box, nDims);
-  return &box[idx_n1];
-}
-
-void
-old_contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
+static void
+contlog_load_arg(contlog_t operand, contlog_t frac[])
 {
   const unsigned int maxdigits = 8*sizeof(operand);
-
-  int neg, invert;
+  int neg;
   if (SIGNED(contlog_t)) {
     neg = (operand >> (maxdigits-1));
     operand ^= operand << 1;
-    invert = 0 == (operand >> SGNBIT_POS(contlog_t));
     operand &= ~((contlog_t)1 << SGNBIT_POS(contlog_t));
   }
   else {
     neg = 0;
-    invert = 0 == (operand >> (maxdigits-1));
     operand ^= operand << 1;
   }
+  frac[0] = 0;
+  frac[1] = 1;
   unsigned int numer = 1;
   unsigned int invpos = maxdigits - (SIGNED(contlog_t) ? 1 : 0);
-
-  int frac[] = {0, 1};
   unsigned int w = operand ? FFS(operand) - 1 : invpos;
   while (w < invpos) {
     operand ^= (contlog_t)1 << w;
@@ -192,34 +136,20 @@ old_contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
     frac[numer] <<= next_w - w - 1;
     w = next_w;
   }
-  numer ^= invert;
+  int shift = maxdigits - FLS(frac[0] | frac[1]) - 1;
   if (neg)
-    frac[numer] = -frac[numer];
-  int shift = FFS(frac[numer] | frac[numer^1]) - 1;
-  *n = frac[numer] >> shift;
-  *d = frac[numer^1] >> shift;
+    frac[0] = -frac[0];
+  frac[0] <<= shift;
+  frac[1] <<= shift;
 }
 
 static void
 contlog_to_frac_ubound(contlog_t operand, contlog_t frac[])
 {
   const unsigned int maxdigits = 8*sizeof(operand);
-  unsigned int invpos = maxdigits - (SIGNED(contlog_t) ? 1 : 0);
-  int neg, invert;
-
-  if (SIGNED(contlog_t)) {
-    neg = (operand >> (maxdigits-1));
-    operand ^= (operand << 1) | 1;
-    invert = 0 == (operand >> SGNBIT_POS(contlog_t));
-    operand &= ~((contlog_t)1 << SGNBIT_POS(contlog_t));
-  }
-  else {
-    neg = 0;
-    invert = 0 == (operand >> (maxdigits-1));
-    operand ^= (operand << 1) | 1;
-  }
+  operand ^= (operand << 1) | 1;
   unsigned int numer = 1;
- 
+  unsigned int invpos = maxdigits - (SIGNED(contlog_t) ? 1 : 0);
   unsigned int w = operand ? FFS(operand) - 1 : invpos;
   frac[numer] = 1 << w;
   frac[numer^1] = 1;
@@ -231,11 +161,7 @@ contlog_to_frac_ubound(contlog_t operand, contlog_t frac[])
     frac[numer] <<= next_w - w - 1;
     w = next_w;
   }
-  numer ^= invert;
-  if (neg)
-    frac[numer] = -frac[numer];
 }
-
 
 void
 contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
@@ -246,12 +172,8 @@ contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
 
   const unsigned int maxbits = 8*sizeof(contlog_t);
   contlog_t hibit = (contlog_t)1 << (maxbits - 1);
-  int inv = (operand < hibit - operand);
-  if (inv)
-    operand = hibit - operand;
-
   int numer = 1;
-  contlog_t frac[2][2] = {{0, 1}, {1, 0}};
+  contlog_t frac[2][2] = {{1, 0}, {0, 1}};
 
   if (operand != 0) {
     contlog_t bound[2][2];
@@ -278,7 +200,7 @@ contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
 	 * add a small extra cf term without passing the upper bound.
 	 */
 	for (int b = 0; b < 2; ++b)
-	  frac[b][numer] += val[numer] * frac[b][numer^1];
+	  frac[numer][b] += val[numer] * frac[numer^1][b];
 	numer ^= 1;
 	val[numer^1] = bound[numer^1][numer] / bound[numer^1][numer^1];
 	val[numer] = val[numer^1] + 1;
@@ -291,13 +213,13 @@ contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
 	 * add one or two small extra cf terms to the lower bound.
 	 */
 	for (int b = 0; b < 2; ++b)
-	  frac[b][numer] += val[numer^1] * frac[b][numer^1];
+	  frac[numer][b] += val[numer^1] * frac[numer^1][b];
 	numer ^= 1;
 	if (bound[numer][numer] >= 2 * bound[numer][numer^1])
 	  val[numer^1] = 1;
 	else {
 	  for (int b = 0; b < 2; ++b)
-	    frac[b][numer] += frac[b][numer^1];
+	    frac[numer][b] += frac[numer^1][b];
 	  numer ^= 1;
 	  val[numer^1] = bound[numer^1][numer] / 
 	    (bound[numer^1][numer^1] - bound[numer^1][numer]);
@@ -310,29 +232,19 @@ contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
       }
 
       for (int b = 0; b < 2; ++b)
-	frac[b][numer] += val[numer] * frac[b][numer^1];
+	frac[numer][b] += val[numer] * frac[numer^1][b];
       if (val[numer^1] < val[numer])
 	break;
       numer ^= 1;
     }
   }
     
-  *n = frac[inv^1][numer];
-  *d = frac[inv][numer];
+  *n = frac[numer][0];
+  *d = frac[numer][1];
   
   if (neg)
     *n = -*n;
   }
-
-void
-extended_contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
-{
-  const unsigned int maxdigits = 8*sizeof(operand);
-  contlog_to_frac(operand, n, d);
-  int shift = maxdigits - FLS((*n^(*n>>1)) | *d) - 1;
-  *n <<= shift;
-  *d <<= shift;
-}
 
 contlog_t
 frac_to_contlog(contlog_t n, contlog_t d)
@@ -638,22 +550,22 @@ contlog_sqrt(contlog_t operand)
 contlog_t
 contlog_incr(contlog_t operand)
 {
-  contlog_t n,d;
-  extended_contlog_to_frac(operand, &n, &d);
-  if (sum_overflows(n, d)) {
-    n = (n + 1) >> 1;
-    d >>= 1;
+  contlog_t frac[2];
+  contlog_load_arg(operand, frac);
+  if (sum_overflows(frac[0], frac[1])) {
+    frac[0] = (frac[0] + 1) >> 1;
+    frac[1] >>= 1;
   }
-  n += d;
-  return frac_to_contlog(n, d);
+  frac[0] += frac[1];
+  return frac_to_contlog(frac[0], frac[1]);
 }
 
 contlog_t
 contlog_add(contlog_t op0, contlog_t op1)
 {
-  contlog_t n,d;
-  extended_contlog_to_frac(op1, &n, &d);
-  contlog_t box[] = {n, d, d, 0};
+  contlog_t frac[2];
+  contlog_load_arg(op1, frac);
+  contlog_t box[] = {frac[0], frac[1], frac[1], 0};
   contlog_t *b = box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
@@ -662,9 +574,9 @@ contlog_add(contlog_t op0, contlog_t op1)
 contlog_t
 contlog_sub(contlog_t op0, contlog_t op1)
 {
-  contlog_t n,d;
-  extended_contlog_to_frac(op1, &n, &d);
-  contlog_t box[] = {-n, d, d, 0};
+  contlog_t frac[2];
+  contlog_load_arg(op1, frac);
+  contlog_t box[] = {-frac[0], frac[1], frac[1], 0};
   contlog_t *b = box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
@@ -673,9 +585,9 @@ contlog_sub(contlog_t op0, contlog_t op1)
 contlog_t
 contlog_mult(contlog_t op0, contlog_t op1)
 {
-  contlog_t n,d;
-  extended_contlog_to_frac(op1, &n, &d);
-  contlog_t box[] = {0, d, n, 0};
+  contlog_t frac[2];
+  contlog_load_arg(op1, frac);
+  contlog_t box[] = {0, frac[1], frac[0], 0};
   contlog_t *b = box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
@@ -684,9 +596,9 @@ contlog_mult(contlog_t op0, contlog_t op1)
 contlog_t
 contlog_div(contlog_t op0, contlog_t op1)
 {
-  contlog_t n,d;
-  extended_contlog_to_frac(op1, &n, &d);
-  contlog_t box[] = {0, n, d, 0};
+  contlog_t frac[2];
+  contlog_load_arg(op1, frac);
+  contlog_t box[] = {0, frac[0], frac[1], 0};
   contlog_t *b = box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
@@ -695,9 +607,9 @@ contlog_div(contlog_t op0, contlog_t op1)
 contlog_t
 contlog_backdiv(contlog_t op0, contlog_t op1)
 {
-  contlog_t n,d;
-  extended_contlog_to_frac(op1, &n, &d);
-  contlog_t box[] = {n, 0, 0, d};
+  contlog_t frac[2];
+  contlog_load_arg(op1, frac);
+  contlog_t box[] = {frac[0], 0, 0, frac[1]};
   contlog_t *b = box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
@@ -706,9 +618,9 @@ contlog_backdiv(contlog_t op0, contlog_t op1)
 contlog_t
 contlog_atnsum(contlog_t op0, contlog_t op1)
 {
-  contlog_t n,d;
-  extended_contlog_to_frac(op1, &n, &d);
-  contlog_t box[] = {n, d, d, -n};
+  contlog_t frac[2];
+  contlog_load_arg(op1, frac);
+  contlog_t box[] = {frac[0], frac[1], frac[1], -frac[0]};
   contlog_t *b= box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
@@ -717,9 +629,9 @@ contlog_atnsum(contlog_t op0, contlog_t op1)
 contlog_t
 contlog_harmsum(contlog_t op0, contlog_t op1)
 {
-  contlog_t n,d;
-  extended_contlog_to_frac(op1, &n, &d);
-  contlog_t box[] = {0, n, n, d};
+  contlog_t frac[2];
+  contlog_load_arg(op1, frac);
+  contlog_t box[] = {0, frac[0], frac[0], frac[1]};
   contlog_t *b= box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
