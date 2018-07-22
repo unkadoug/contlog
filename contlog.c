@@ -274,7 +274,6 @@ frac_to_contlog(contlog_t n, contlog_t d)
   unsigned int numer = (frac[0] < frac[1]);
 
   while (frac[numer^1] != 0 && w > 0) {
-    // frac[numer] > frac[numer^1]
     int shift = FLS(frac[numer]) - FLS(frac[numer^1]);
     if (frac[numer] >= frac[numer^1] << shift)
       ++shift;
@@ -365,25 +364,43 @@ contlog_sqrt(contlog_t operand)
   const unsigned int maxbits = 8*sizeof(contlog_t);
   contlog_t hibit = (contlog_t)1 << (maxbits - 1);
 
-  contlog_t n,d;
-  contlog_to_frac(operand, &n, &d);
-  contlog_t box[] = {n, 0, 0, d};
-
-  unsigned int idx_n1 = (n >= d) ? 3 : 0;
-  unsigned int numer = (n >= d);
+  contlog_t frac[2];
+  contlog_load_arg(operand, frac);
+  contlog_t n = frac[0];
+  contlog_t d = frac[1];
+  int shift = maxbits - 1;
+  if (n >= d) {
+    shift -= FLS(d);
+    shift &= ~1;
+    d <<= shift;
+  }
+  else {
+    shift -= FLS(n);
+    shift &= ~1;
+    n <<= shift;
+  }
+  contlog_t n1 = n >> maxbits/2;
+  contlog_t n2 = n - (n1 << maxbits/2);
+  contlog_t d1 = d >> maxbits/2;
+  contlog_t d2 = d - (d1 << maxbits/2);
+  contlog_t D = n2*d2 >> maxbits/2;
+  D = (D + n1*d2+n2*d1) >> maxbits/2;
+  D += n1*d1;
+  contlog_div_t s = isqrt(D);
+  contlog_t geomean = (s.quot << (maxbits-shift)/2) + (s.rem << (maxbits-shift)/2) / (2 * s.quot + 1);
+  contlog_t box[] = {frac[0], 0, 0, frac[1]};
+  unsigned int idx_n1 = frac[0] >= frac[1] ? 3 : 0;
   int b;
   int w = 8 * sizeof(contlog_t) - 1;
   operand = 0;
 
   while (w > 0 && box[idx_n1] != 0) {
     debug_print(operand, box, 2);
-    int prodsize = FLS(box[0]) + FLS(box[3]);
-    int shift = 0;
-    if (prodsize > maxbits)
-      shift = (prodsize - maxbits + 2) / 2;
-    contlog_t det = (box[0]>>shift)*(box[3]>>shift) - (box[1]>>shift)*(box[2]>>shift);
-    contlog_div_t rt_nd = isqrt(det);
-    shift = FLS(((rt_nd.quot<<shift) + box[idx_n1^1]) / box[idx_n1]);
+    contlog_t avg = geomean + (box[idx_n1^1] - geomean) / 2;
+    int shift = FLS(avg) - FLS(box[idx_n1]);
+    if (avg >= box[idx_n1] << shift)
+      ++shift;
+    ++shift;
     if (shift > w)
       break;
     w -= shift;
@@ -391,20 +408,60 @@ contlog_sqrt(contlog_t operand)
       operand |= (((contlog_t)1 << shift) - 1) << w;
     --shift;
 
-    unsigned int idx_nopd = idx_n1;
-    idx_n1 ^= 2;
-    for (b = 0; b < 2; ++b)
-      box[idx_n1^b] += box[idx_nopd^b] <<= shift;
+    geomean >>= shift;
+    unsigned int idx_nopd;
 
     idx_nopd = idx_n1;
     idx_n1 ^= 1;
-    for (b = 0; b < 4; b+=2)
-      box[idx_n1^b] -= box[idx_nopd^b] <<= shift;
-    shift = FFS(box[0]|box[1]|box[2]|box[3]) - 1;
-    box[0] >>= shift;
-    box[1] >>= shift;
-    box[2] >>= shift;
-    box[3] >>= shift;
+    int overflow = 0;
+    for (b = 0; !overflow && b < 4; b+=2) {
+      contlog_t addend = box[idx_n1^b];
+      if (shift > 0) {
+	addend += 1 << (shift - 1);
+	addend >>= shift;
+      }
+      overflow = sum_overflows(addend, -box[idx_nopd^b]);
+    }
+    shift += overflow;
+    for (b = 0; b < 4; b+=2) {
+      if (shift > 0) {
+	box[idx_n1^b] += 1 << (shift - 1);
+	box[idx_n1^b] >>= shift;
+	box[idx_nopd^b] >>= overflow;
+      }
+      box[idx_n1^b] -= box[idx_nopd^b];
+    }
+
+    idx_nopd = idx_n1;
+    idx_n1 ^= 2;
+
+
+    overflow = 0;
+    for (b = 0; !overflow && b < 2; ++b) {
+      contlog_t addend = box[idx_n1^b];
+      if (shift > 0) {
+	addend += 1 << (shift - 1);
+	addend >>= shift;
+      }
+      overflow = sum_overflows(addend, box[idx_nopd^b]);
+    }
+    shift += overflow;
+    for (b = 0; b < 2; ++b) {
+      if (shift > 0) {
+	box[idx_n1^b] += 1 << (shift - 1);
+	box[idx_n1^b] >>= shift;
+	box[idx_nopd^b] >>= overflow;
+      }
+      box[idx_n1^b] += box[idx_nopd^b];
+    }
+#if 0
+    contlog_t mask = 0;
+    for (b = 0; b < 4; ++b)
+      mask |= box[b] >= 0 ? box[b] : -box[b];
+    shift = maxbits - 1 - FLS(mask);
+    for (b = 0; b < 4; ++b)
+      box[b] <<= shift;
+#endif
   }
   if (idx_n1)
     operand |= (contlog_t)1 << w;
@@ -608,6 +665,20 @@ splat(contlog_t i, contlog_t j, contlog_t n, contlog_t d)
   printf("%08x\t%08x\t%d/%d\n", i, j, n, d);
 }
 
+static void
+splat2(contlog_t i, contlog_t j, contlog_t k)
+{
+  int ni, di;
+  contlog_to_frac(i, &ni, &di);
+  int nj, dj;
+  contlog_to_frac(j, &nj, &dj);
+  int nk, dk;
+  contlog_to_frac(k, &nk, &dk);
+
+  printf("x = %08x (%d/%d), sqrt(x)=%08x (%d/%d), x/sqrt(x) = %08x (%d/%d)\n",
+	 i, ni, di, j, nj, dj, k, nk, dk);
+}
+
 int main(int argc, char *argv[])
 {
   if (argc == 1) {
@@ -618,6 +689,10 @@ int main(int argc, char *argv[])
       contlog_t j = frac_to_contlog(n, d);
       if (i != j)
 	splat(i, j, n, d);
+      j = contlog_sqrt(i);
+      contlog_t k = contlog_div(i,j);
+      if (j - k > 2 || k - j > 2)
+	splat2(i, j, k);
       ++i;
     }
   }
