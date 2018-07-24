@@ -357,7 +357,7 @@ isqrt(contlog_t rem)
   }
   return (res);
 }
-#if 1
+
 contlog_t
 contlog_sqrt(contlog_t operand)
 {
@@ -467,64 +467,7 @@ contlog_sqrt(contlog_t operand)
     operand |= (contlog_t)1 << w;
   return operand;
 }
-#else
 
-static contlog_t
-gcd(contlog_t a, contlog_t b)
-{
-  contlog_t pair[] = {a, b};
-  int bigger = a < b;
-  while (pair[!bigger] != 0) {
-    pair[bigger] %= pair[!bigger];
-    bigger = !bigger;
-  }
-  return pair[bigger];
-}
-contlog_t
-contlog_sqrt(contlog_t operand)
-{
-  contlog_t n,d;
-  contlog_to_frac(operand, &n, &d);
-  contlog_t nd = n * d;
-  contlog_div_t rt_nd = isqrt(nd);
-  if (rt_nd.rem == 0)
-    return frac_to_contlog(rt_nd.quot, d);
-
-  int w = 8 * sizeof(contlog_t) - 1;
-  contlog_t r = 1;
-  printf("\n");
-  
-  int numer = n >= d;
-  if (!numer)
-    d = n;
-
-  n = 0;
-  operand = 0;
-  while (w > 0) {
-    /* Find the log of (n + r*sqrt(nd)) / d */
-    int shift = FLS((n + r*rt_nd.quot + r*rt_nd.rem/(2 * rt_nd.quot + 1))/d);
-    if (shift > w)
-      break;
-    w -= shift;
-    if (numer)
-      operand |= (((contlog_t)1 << shift) - 1) << w;
-    numer ^= 1;
-
-    contlog_t Rd = d << (shift - 1);
-    d = r*r*nd - n*n + Rd * (2*n - Rd);
-    n = Rd * (Rd - n);
-    r *= Rd;
-    contlog_t g = gcd(gcd(n, d), r);
-    n /= g;
-    d /= g;
-    r /= g;
-    printf("n %d\td %d\tr %d\tg %d\n", n, d, r, g);
-  }
-  if (numer)
-    operand |= (contlog_t)1 << w;
-  return operand;
-}
-#endif
 contlog_t
 contlog_incr(contlog_t operand)
 {
