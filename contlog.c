@@ -368,17 +368,25 @@ contlog_sqrt(contlog_t operand)
   contlog_load_arg(operand, frac);
   contlog_t n = frac[0];
   contlog_t d = frac[1];
-  int shift = maxbits - 1;
+  int shift;
+  unsigned int idx_n1;
   if (n >= d) {
-    shift -= FLS(d);
-    shift &= ~1;
+    shift = (maxbits - 1 - FLS(d)) & ~1;
     d <<= shift;
+    idx_n1 = 3;
   }
   else {
-    shift -= FLS(n);
-    shift &= ~1;
+    shift = (maxbits - 1 - FLS(n)) & ~1;
     n <<= shift;
+    idx_n1 = 0;
   }
+  shift /= 2;
+  int w = 8 * sizeof(contlog_t) - 1;
+  operand = 0;
+  w -= shift;
+  if (idx_n1)
+    operand |= (((contlog_t)1 << shift) - 1) << w;
+
   contlog_t n1 = n >> maxbits/2;
   contlog_t n2 = n - (n1 << maxbits/2);
   contlog_t d1 = d >> maxbits/2;
@@ -387,12 +395,9 @@ contlog_sqrt(contlog_t operand)
   D = (D + n1*d2+n2*d1) >> maxbits/2;
   D += n1*d1;
   contlog_div_t s = isqrt(D);
-  contlog_t geomean = (s.quot << (maxbits-shift)/2) + (s.rem << (maxbits-shift)/2) / (2 * s.quot + 1);
-  contlog_t box[] = {frac[0], 0, 0, frac[1]};
-  unsigned int idx_n1 = frac[0] >= frac[1] ? 3 : 0;
+  contlog_t geomean = (s.quot << maxbits/2) + (s.rem << maxbits/2) / (2 * s.quot);
+  contlog_t box[] = {n, 0, 0, d};
   int b;
-  int w = 8 * sizeof(contlog_t) - 1;
-  operand = 0;
 
   while (w > 0 && box[idx_n1] != 0) {
     debug_print(operand, box, 2);
