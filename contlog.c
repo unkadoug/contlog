@@ -372,11 +372,15 @@ contlog_sqrt(contlog_t operand)
   unsigned int idx_n1;
   if (n >= d) {
     shift = (maxbits - 1 - FLS(d)) & ~1;
+    if (d << shift > n)
+      shift -= 2;
     d <<= shift;
     idx_n1 = 3;
   }
   else {
     shift = (maxbits - 1 - FLS(n)) & ~1;
+    if (n << shift >= d)
+      shift -= 2;
     n <<= shift;
     idx_n1 = 0;
   }
@@ -402,10 +406,9 @@ contlog_sqrt(contlog_t operand)
   while (w > 0 && box[idx_n1] != 0) {
     debug_print(operand, box, 2);
     contlog_t avg = geomean + (box[idx_n1^1] - geomean) / 2;
-    int shift = FLS(avg) - FLS(box[idx_n1]);
-    if (avg >= box[idx_n1] << shift)
+    int shift = FLS(avg) + 1 - FLS(box[idx_n1]);
+    if (avg >= (box[idx_n1] << shift) / 2)
       ++shift;
-    ++shift;
     if (shift > w)
       break;
     w -= shift;
