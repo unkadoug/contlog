@@ -408,48 +408,44 @@ contlog_sqrt(contlog_t operand)
   frac[1] <<= shift;
   /* one has bit 30 set */
 
-  unsigned int idx_n1 = frac[0] >= frac[1];
-  shift = (FLS(frac[idx_n1^1]) - FLS(frac[idx_n1])) & ~1;
-  if (frac[idx_n1^1] < frac[idx_n1] << shift)
+  unsigned int denom = frac[0] >= frac[1];
+  shift = (FLS(frac[denom^1]) - FLS(frac[denom])) & ~1;
+  if (frac[denom^1] < frac[denom] << shift)
     shift -= 2;
-  frac[idx_n1] <<= shift;
+  frac[denom] <<= shift;
 
   int w = 8 * sizeof(contlog_t) - 1;
   operand = 0;
   shift /= 2;
   w -= shift;
-  if (idx_n1)
+  if (denom)
     operand |= (((contlog_t)1 << shift) - 1) << w;
 
   contlog_div_t gmean = isqrt_prod(frac[0], frac[1]);
-  
-  contlog_t box[] = {frac[0], 0, frac[1]};
-  int b;
-  idx_n1 *= 2;
-
-  while (w > 0 && box[idx_n1] != 0) {
-    contlog_t sum = gmean.quot + box[1];
-    int shift = FLS(sum) - FLS(box[idx_n1]);
-    if (sum >= box[idx_n1] << shift)
+  contlog_t mix = 0;
+  while (w > 0 && frac[denom] != 0) {
+    contlog_t sum = gmean.quot + mix;
+    int shift = FLS(sum) - FLS(frac[denom]);
+    if (sum >= frac[denom] << shift)
       ++shift;
     if (shift <= 0)
       abort();
     if (shift > w)
       break;
     w -= shift;
-    if (idx_n1)
+    if (denom)
       operand |= (((contlog_t)1 << shift) - 1) << w;
     --shift;
-    contlog_t offd = box[1];
-    box[idx_n1] <<= shift;
-    box[1] = box[idx_n1] - offd;
-    idx_n1 ^= 2;
-    box[idx_n1] >>= shift;
-    box[idx_n1] += offd - box[1];
+    frac[denom] <<= shift;
+    contlog_t delta = mix - (frac[denom] - mix);
+    mix = frac[denom] - mix;
+    denom ^= 1;
+    frac[denom] >>= shift;
+    frac[denom] += delta;
     //    fprintf(stderr, "shift %d\t", shift);
-    //    debug_print(operand, box, 2);
+    //    debug_print(operand, frac, 1);
   }
-  if (idx_n1)
+  if (denom)
     operand |= (contlog_t)1 << w;
   return operand;
 }
