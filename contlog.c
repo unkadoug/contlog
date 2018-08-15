@@ -361,9 +361,8 @@ isqrt_help(contlog_div_t *res, contlog_t arg)
     res->quot <<= 1;
     res->rem <<= 2;
     res->rem += (arg >> place) & 3;
-    contlog_t dr = 2 * res->quot + 1;
-    if (res->rem >= dr) {
-      res->rem -= dr;
+    if ((res->rem - 1) / 2 >= res->quot) {
+      res->rem -= 2 * res->quot + 1;
       ++res->quot;
     }
   }
@@ -392,11 +391,6 @@ isqrt_prod(contlog_t a, contlog_t b)
   contlog_div_t res = {0, 0};
   isqrt_help(&res, ab_hi);
   isqrt_help(&res, ab_lo);
-  if (res.rem < 0) {
-    contlog_t dr = 2 * res.quot + 1;
-    res.rem -= dr;
-    ++res.quot;
-  }
   return res;
 }
 
