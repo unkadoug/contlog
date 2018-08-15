@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include <string.h>
 #include <stdio.h>
 
@@ -68,7 +70,7 @@ contlog_fold(contlog_t operand, contlog_t box[], int nDims)
   }
 
   while (operand != 0) {
-    debug_print(operand, box, nDims);
+    //    debug_print(operand, box, nDims);
 
     /* Swap the with-d face of the box with the without-d
      * face, and let idx_nopd identify the position of the constant
@@ -105,17 +107,19 @@ contlog_fold(contlog_t operand, contlog_t box[], int nDims)
       box[idx_n1^b] += box[idx_nopd^b];
     }
   }
-  debug_print(operand, box, nDims);
+
+  //  debug_print(operand, box, nDims);
+
   return &box[idx_n1];
 }
 
-static void
-contlog_load_arg(contlog_t operand, contlog_t frac[])
+static int
+contlog_decode(contlog_t operand, contlog_t frac[])
 {
-  const unsigned int maxdigits = 8*sizeof(operand);
+  const unsigned int maxbits = 8*sizeof(operand);
   int neg;
   if (SIGNED(contlog_t)) {
-    neg = (operand >> (maxdigits-1));
+    neg = (operand >> (maxbits-1));
     operand ^= operand << 1;
     operand &= ~((contlog_t)1 << SGNBIT_POS(contlog_t));
   }
@@ -126,7 +130,7 @@ contlog_load_arg(contlog_t operand, contlog_t frac[])
   frac[0] = 0;
   frac[1] = 1;
   unsigned int numer = 1;
-  unsigned int invpos = maxdigits - (SIGNED(contlog_t) ? 1 : 0);
+  unsigned int invpos = maxbits - (SIGNED(contlog_t) ? 1 : 0);
   unsigned int w = operand ? FFS(operand) - 1 : invpos;
   while (w < invpos) {
     operand ^= (contlog_t)1 << w;
@@ -136,7 +140,15 @@ contlog_load_arg(contlog_t operand, contlog_t frac[])
     frac[numer] <<= next_w - w - 1;
     w = next_w;
   }
-  int shift = maxdigits - FLS(frac[0] | frac[1]) - 1;
+  return neg;
+}
+
+static void
+contlog_load_arg(contlog_t operand, contlog_t frac[])
+{
+  const unsigned int maxbits = 8*sizeof(operand);
+  int neg = contlog_decode(operand, frac);
+  int shift = maxbits - FLS(frac[0] | frac[1]) - 1;
   if (neg)
     frac[0] = -frac[0];
   frac[0] <<= shift;
@@ -146,10 +158,10 @@ contlog_load_arg(contlog_t operand, contlog_t frac[])
 static void
 contlog_to_frac_ubound(contlog_t operand, contlog_t frac[])
 {
-  const unsigned int maxdigits = 8*sizeof(operand);
+  const unsigned int maxbits = 8*sizeof(operand);
   operand ^= (operand << 1) | 1;
   unsigned int numer = 1;
-  unsigned int invpos = maxdigits - (SIGNED(contlog_t) ? 1 : 0);
+  unsigned int invpos = maxbits - (SIGNED(contlog_t) ? 1 : 0);
   unsigned int w = operand ? FFS(operand) - 1 : invpos;
   frac[numer] = 1 << w;
   frac[numer^1] = 1;
@@ -193,6 +205,9 @@ contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
 	 */
 	--val[numer^1];
       switch (val[numer] - val[numer^1]) {
+      default:
+	val[numer] &= (contlog_t)-1 << (FLS(val[0]^val[1])-1);
+	break;
       case 0:
 	if (bound[numer^1][numer] != 0)
 	  break;
@@ -224,9 +239,6 @@ contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
 	  val[numer^1] = bound[numer^1][numer] / 
 	    (bound[numer^1][numer^1] - bound[numer^1][numer]);
 	}
-	val[numer] = val[numer^1] + 1;
-	break;
-      default:
 	val[numer] = val[numer^1] + 1;
 	break;
       }
@@ -338,24 +350,54 @@ typedef struct {
   contlog_t rem;
 } contlog_div_t;
 
-static inline contlog_div_t
-isqrt(contlog_t rem)
+static inline void
+isqrt_help(contlog_div_t *res, contlog_t arg)
 {
-  //int square = rem;
-  int place = (FLS(rem) + 1) & ~1;
-  contlog_div_t res = {0, rem};
-
+  int place = res->quot == 0 ?
+    ((FLS(arg) + 1 )& ~1) :
+    8 * sizeof(contlog_t);
   while (place > 0) {
-    res.quot /= 2;
     place -= 2;
-    contlog_t bit = (contlog_t)1 << place;
-    contlog_t newrem = res.rem - (bit + 2*res.quot);
-    if (newrem >= 0) {
-      res.rem = newrem;
-      res.quot += bit;
+    res->quot <<= 1;
+    res->rem <<= 2;
+    res->rem += (arg >> place) & 3;
+    contlog_t dr = 2 * res->quot + 1;
+    if (res->rem >= dr) {
+      res->rem -= dr;
+      ++res->quot;
     }
   }
-  return (res);
+}
+
+static inline contlog_div_t
+isqrt_prod(contlog_t a, contlog_t b)
+{
+  const unsigned int maxbits = 8*sizeof(contlog_t);
+  const unsigned int halfbits = maxbits / 2;
+  const contlog_t halfmask = ((contlog_t)1 << halfbits) - 1;
+  contlog_t hibit = (contlog_t)1 << (maxbits - 1);
+
+  contlog_t a_hi = a >> halfbits;
+  contlog_t b_hi = b >> halfbits;
+  a -= a_hi << halfbits;
+  b -= b_hi << halfbits;
+
+  contlog_t ab_hi = a_hi * b_hi;
+  contlog_t ab_mid = a_hi * b + b_hi * a;
+  contlog_t ab_lo = a * b;
+
+  contlog_t carry = (ab_lo >> halfbits) & halfmask;
+  ab_hi += ((carry + ab_mid) >> halfbits) & halfmask;
+  ab_lo += ab_mid << halfbits;
+  contlog_div_t res = {0, 0};
+  isqrt_help(&res, ab_hi);
+  isqrt_help(&res, ab_lo);
+  if (res.rem < 0) {
+    contlog_t dr = 2 * res.quot + 1;
+    res.rem -= dr;
+    ++res.quot;
+  }
+  return res;
 }
 
 contlog_t
@@ -365,111 +407,53 @@ contlog_sqrt(contlog_t operand)
   contlog_t hibit = (contlog_t)1 << (maxbits - 1);
 
   contlog_t frac[2];
-  contlog_load_arg(operand, frac);
-  contlog_t n = frac[0];
-  contlog_t d = frac[1];
-  int shift;
-  unsigned int idx_n1;
-  if (n >= d) {
-    shift = (maxbits - 1 - FLS(d)) & ~1;
-    if (d << shift > n)
-      shift -= 2;
-    d <<= shift;
-    idx_n1 = 3;
-  }
-  else {
-    shift = (maxbits - 1 - FLS(n)) & ~1;
-    if (n << shift >= d)
-      shift -= 2;
-    n <<= shift;
-    idx_n1 = 0;
-  }
-  shift /= 2;
+  contlog_to_frac(operand, &frac[0], &frac[1]);
+
+  int shift = maxbits - FLS(frac[0] | frac[1]) - 2;
+  frac[0] <<= shift;
+  frac[1] <<= shift;
+  /* one has bit 30 set */
+
+  unsigned int idx_n1 = frac[0] >= frac[1];
+  shift = (FLS(frac[idx_n1^1]) - FLS(frac[idx_n1])) & ~1;
+  if (frac[idx_n1^1] < frac[idx_n1] << shift)
+    shift -= 2;
+  frac[idx_n1] <<= shift;
+
   int w = 8 * sizeof(contlog_t) - 1;
   operand = 0;
+  shift /= 2;
   w -= shift;
   if (idx_n1)
     operand |= (((contlog_t)1 << shift) - 1) << w;
 
-  contlog_t n1 = n >> maxbits/2;
-  contlog_t n2 = n - (n1 << maxbits/2);
-  contlog_t d1 = d >> maxbits/2;
-  contlog_t d2 = d - (d1 << maxbits/2);
-  contlog_t D = n2*d2 >> maxbits/2;
-  D = (D + n1*d2+n2*d1) >> maxbits/2;
-  D += n1*d1;
-  contlog_div_t s = isqrt(D);
-  contlog_t geomean = (s.quot << maxbits/2) + (s.rem << maxbits/2) / (2 * s.quot);
-  contlog_t box[] = {n, 0, 0, d};
+  contlog_div_t gmean = isqrt_prod(frac[0], frac[1]);
+  
+  contlog_t box[] = {frac[0], 0, frac[1]};
   int b;
+  idx_n1 *= 2;
 
   while (w > 0 && box[idx_n1] != 0) {
-    debug_print(operand, box, 2);
-    contlog_t avg = geomean + (box[idx_n1^1] - geomean) / 2;
-    int shift = FLS(avg) + 1 - FLS(box[idx_n1]);
-    if (avg >= (box[idx_n1] << shift) / 2)
+    contlog_t sum = gmean.quot + box[1];
+    int shift = FLS(sum) - FLS(box[idx_n1]);
+    if (sum >= box[idx_n1] << shift)
       ++shift;
+    if (shift <= 0)
+      abort();
     if (shift > w)
       break;
     w -= shift;
     if (idx_n1)
       operand |= (((contlog_t)1 << shift) - 1) << w;
     --shift;
-
-    geomean >>= shift;
-    unsigned int idx_nopd;
-
-    idx_nopd = idx_n1;
-    idx_n1 ^= 1;
-    int overflow = 0;
-    for (b = 0; !overflow && b < 4; b+=2) {
-      contlog_t addend = box[idx_n1^b];
-      if (shift > 0) {
-	addend += 1 << (shift - 1);
-	addend >>= shift;
-      }
-      overflow = sum_overflows(addend, -box[idx_nopd^b]);
-    }
-    shift += overflow;
-    for (b = 0; b < 4; b+=2) {
-      if (shift > 0) {
-	box[idx_n1^b] += 1 << (shift - 1);
-	box[idx_n1^b] >>= shift;
-	box[idx_nopd^b] >>= overflow;
-      }
-      box[idx_n1^b] -= box[idx_nopd^b];
-    }
-
-    idx_nopd = idx_n1;
+    contlog_t offd = box[1];
+    box[idx_n1] <<= shift;
+    box[1] = box[idx_n1] - offd;
     idx_n1 ^= 2;
-
-
-    overflow = 0;
-    for (b = 0; !overflow && b < 2; ++b) {
-      contlog_t addend = box[idx_n1^b];
-      if (shift > 0) {
-	addend += 1 << (shift - 1);
-	addend >>= shift;
-      }
-      overflow = sum_overflows(addend, box[idx_nopd^b]);
-    }
-    shift += overflow;
-    for (b = 0; b < 2; ++b) {
-      if (shift > 0) {
-	box[idx_n1^b] += 1 << (shift - 1);
-	box[idx_n1^b] >>= shift;
-	box[idx_nopd^b] >>= overflow;
-      }
-      box[idx_n1^b] += box[idx_nopd^b];
-    }
-#if 0
-    contlog_t mask = 0;
-    for (b = 0; b < 4; ++b)
-      mask |= box[b] >= 0 ? box[b] : -box[b];
-    shift = maxbits - 1 - FLS(mask);
-    for (b = 0; b < 4; ++b)
-      box[b] <<= shift;
-#endif
+    box[idx_n1] >>= shift;
+    box[idx_n1] += offd - box[1];
+    //    fprintf(stderr, "shift %d\t", shift);
+    //    debug_print(operand, box, 2);
   }
   if (idx_n1)
     operand |= (contlog_t)1 << w;
