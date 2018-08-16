@@ -258,6 +258,14 @@ contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
     *n = -*n;
   }
 
+static int lgratio(contlog_t n, contlog_t d)
+{
+  int lg = FLS(n) - FLS(d);
+  if (n >= d << lg)
+    ++lg;
+  return (lg);
+}
+
 contlog_t
 frac_to_contlog(contlog_t n, contlog_t d)
 {
@@ -286,9 +294,7 @@ frac_to_contlog(contlog_t n, contlog_t d)
   unsigned int numer = (frac[0] < frac[1]);
 
   while (frac[numer^1] != 0 && w > 0) {
-    int shift = FLS(frac[numer]) - FLS(frac[numer^1]);
-    if (frac[numer] >= frac[numer^1] << shift)
-      ++shift;
+    int shift = lgratio(frac[numer], frac[numer^1]);
     if (shift > w)
       break;
     w -= shift;
@@ -401,51 +407,47 @@ contlog_sqrt(contlog_t operand)
   contlog_t hibit = (contlog_t)1 << (maxbits - 1);
 
   contlog_t frac[2];
-  contlog_to_frac(operand, &frac[0], &frac[1]);
+  contlog_to_frac(operand, &frac[1], &frac[0]);
 
   int shift = maxbits - FLS(frac[0] | frac[1]) - 2;
   frac[0] <<= shift;
   frac[1] <<= shift;
   /* one has bit 30 set */
 
-  unsigned int denom = frac[0] >= frac[1];
-  shift = (FLS(frac[denom^1]) - FLS(frac[denom])) & ~1;
-  if (frac[denom^1] < frac[denom] << shift)
+  unsigned int numer = frac[0] < frac[1];
+  shift = (FLS(frac[numer]) - FLS(frac[numer^1])) & ~1;
+  if (frac[numer] < frac[numer^1] << shift)
     shift -= 2;
-  frac[denom] <<= shift;
+  frac[numer^1] <<= shift;
 
   int w = 8 * sizeof(contlog_t) - 1;
   operand = 0;
   shift /= 2;
   w -= shift;
-  if (denom)
+  if (numer)
     operand |= (((contlog_t)1 << shift) - 1) << w;
 
   contlog_div_t gmean = isqrt_prod(frac[0], frac[1]);
   contlog_t mix = 0;
-  while (w > 0 && frac[denom] != 0) {
-    contlog_t sum = gmean.quot + mix;
-    int shift = FLS(sum) - FLS(frac[denom]);
-    if (sum >= frac[denom] << shift)
-      ++shift;
+  while (frac[numer^1] != 0 && w > 0) {
+    int shift = lgratio(gmean.quot + mix, frac[numer^1]);
     if (shift <= 0)
       abort();
     if (shift > w)
       break;
     w -= shift;
-    if (denom)
+    if (numer)
       operand |= (((contlog_t)1 << shift) - 1) << w;
-    --shift;
-    frac[denom] <<= shift;
-    contlog_t delta = mix - (frac[denom] - mix);
-    mix = frac[denom] - mix;
-    denom ^= 1;
-    frac[denom] >>= shift;
-    frac[denom] += delta;
+    numer ^= 1;
+    frac[numer] <<= shift - 1;
+    contlog_t delta = mix - (frac[numer] - mix);
+    mix = frac[numer] - mix;
+    frac[numer^1] >>= shift - 1;
+    frac[numer^1] += delta;
     //    fprintf(stderr, "shift %d\t", shift);
     //    debug_print(operand, frac, 1);
   }
-  if (denom)
+  if (numer)
     operand |= (contlog_t)1 << w;
   return operand;
 }
