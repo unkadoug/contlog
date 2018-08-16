@@ -440,10 +440,9 @@ contlog_sqrt(contlog_t operand)
       operand |= (((contlog_t)1 << shift) - 1) << w;
     numer ^= 1;
     frac[numer] <<= shift - 1;
-    contlog_t delta = mix - (frac[numer] - mix);
-    mix = frac[numer] - mix;
     frac[numer^1] >>= shift - 1;
-    frac[numer^1] += delta;
+    frac[numer^1] -= (frac[numer] - mix) - mix;
+    mix = frac[numer] - mix;
     //    fprintf(stderr, "shift %d\t", shift);
     //    debug_print(operand, frac, 1);
   }
