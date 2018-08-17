@@ -258,7 +258,8 @@ contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
     *n = -*n;
   }
 
-static int lgratio(contlog_t n, contlog_t d)
+static int
+lgratio(contlog_t n, contlog_t d)
 {
   int lg = FLS(n) - FLS(d);
   if (n >= d << lg)
@@ -409,7 +410,7 @@ contlog_sqrt(contlog_t operand)
   contlog_t frac[2];
   contlog_to_frac(operand, &frac[1], &frac[0]);
 
-  int shift = maxbits - FLS(frac[0] | frac[1]) - 2;
+  int shift = maxbits - FLS(frac[0] | frac[1]) - 1;
   frac[0] <<= shift;
   frac[1] <<= shift;
   /* one has bit 30 set */
@@ -439,8 +440,11 @@ contlog_sqrt(contlog_t operand)
     if (numer)
       operand |= (((contlog_t)1 << shift) - 1) << w;
     numer ^= 1;
-    frac[numer] <<= shift - 1;
-    frac[numer^1] >>= shift - 1;
+    if (--shift) {
+      frac[numer] <<= shift;
+      frac[numer^1] >>= shift;
+      frac[numer^1] &= ((contlog_t)1 << (maxbits - shift)) - 1;
+    }
     frac[numer^1] -= (frac[numer] - mix) - mix;
     mix = frac[numer] - mix;
     //    fprintf(stderr, "shift %d\t", shift);
