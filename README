@@ -1,12 +1,14 @@
 Contlog - representing numbers as continued logarithms
 
 In his notes on continued fraction arithmetic, Gosper introduced
-continued logarithms as a representation for real numbers better
-suited to binary representation.  In his representation, if s is a
-string of bits that represents some real number x, then the strings 1s
-and 0s respresent, respectively, the numbers 2x and 1+1/x.  Assume
-that the empty bit string represents infinity (oo), so that the first
-few positive integers are expressed as
+continued logarithms as an alternative to continued fractions for
+representing real numbers.  Continued logarithms are based on ones and
+zeroes, not arbitrary integer values, and are thus better suited to
+binary representation.  In his representation, if s is a string of
+bits that represents some real number x, then the strings 1s and 0s
+respresent, respectively, the numbers 2x and 1+1/x.  Assume that the
+empty bit string represents infinity (oo), so that the first few
+positive integers are expressed as
 
 1: 0
 2: 10
@@ -33,7 +35,7 @@ represents the larger of two values.  Also, numbers less than one are
 not given a representation.  To address all that, define the contlog
 representation of a number as follows.
 
-An incomplete string of 0's of any length, or infinite length, represents 0.
+An incomplete string of 0's of infinite length, represents oo.
 
 If s is an incomplete string that represents the number x, then bx is
 an incomplete string that represents the number 2x, if b is the first
@@ -81,26 +83,14 @@ value.
 With 4 bits, and assuming that all the bits after the first four are
 zero, the numbers that can be represented are
 
-0000:  0/1
-0001:  1/4
-0010:  1/2
-0011:  2/3
-0100:  1/1
-0101:  3/2
-0110:  2/1
-0111:  4/1
-1000:  1/0
-1001: -4/1
-1010: -2/1
-1011: -3/2
-1100: -1/1
-1101: -2/3
-1110: -1/2
-1111: -1/4
+0000:  0/1  0100:  1/1  1000: -1/0  1100: -1/1
+0001:  1/4  0101:  3/2	1001: -4/1  1101: -2/3
+0010:  1/2  0110:  2/1	1010: -2/1  1110: -1/2
+0011:  2/3  0111:  4/1	1011: -3/2  1111: -1/4
 
-If two ints i and j satisfy i < j, and those bits are interpreted
-instead as contlog representations of rational numbers x and y, then
-necessarily x < y.
+If two twos-complement integers i and j satisfy i < j, and those bits
+are interpreted instead as contlog representations of rational numbers
+contlog(i) and contlog(j), then necessarily contlog(i) < contlog(j).
 
 While this representation is great for representing exactly rational
 numbers with small numerator and denominator in just a few bits, it
@@ -109,14 +99,14 @@ powers of two.  For example 127=6:0:5:0:4:0:3:0:2:0:1:0:0, so the
 signed contlog representation of 127 requires 36 bits before the
 infinite string of zeroes begins.  Computing a 32-bit approximation to
 127/1 requires rounding; this implementation rounds up or down if the
-truncated bits respresent a value more or less than one, and otherwise
-round toward zero.
+truncated bits are lexicographically more or less than "1000..", and
+otherwise round toward the value with 0 as its last stored bit.
 
 Translating that bit string back to a rational number, leads to the
 result 6:0:5:0:4:0:3:0:3 = 37722176/297025, which is not likely to be
 an expected result.  To provide a more expected result, this
 implementation considers a fixed size bit string to represent the
-interval that contains all the ratios that would be converted to that
+interval that includes all the ratios that would be converted to that
 bit string, and picks the one to represent the interval that has the
 smallest denominator.  For a fixed-size bit string that ends in a
 zero, that includes the values at the endpoints of the interval, and
