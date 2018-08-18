@@ -206,7 +206,8 @@ contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
 	--val[numer^1];
       switch (val[numer] - val[numer^1]) {
       default:
-	val[numer] &= (contlog_t)-1 << (FLS(val[0]^val[1])-1);
+	// val[numer] &= (contlog_t)-1 << (FLS(val[0]^val[1])-1);
+	val[numer] = val[numer^1] + 1;
 	break;
       case 0:
 	if (bound[numer^1][numer] != 0)
@@ -409,14 +410,8 @@ contlog_sqrt(contlog_t operand)
 
   contlog_t frac[2];
   contlog_to_frac(operand, &frac[1], &frac[0]);
-
-  int shift = maxbits - FLS(frac[0] | frac[1]) - 1;
-  frac[0] <<= shift;
-  frac[1] <<= shift;
-  /* one has bit 30 set */
-
-  unsigned int numer = frac[0] < frac[1];
-  shift = (FLS(frac[numer]) - FLS(frac[numer^1])) & ~1;
+  unsigned int numer = FLS(frac[0]) < FLS(frac[1]) && frac[0] < frac[1];
+  int shift = (FLS(frac[numer]) - FLS(frac[numer^1])) & ~1;
   if (frac[numer] < frac[numer^1] << shift)
     shift -= 2;
   frac[numer^1] <<= shift;
@@ -427,6 +422,18 @@ contlog_sqrt(contlog_t operand)
   w -= shift;
   if (numer)
     operand |= (((contlog_t)1 << shift) - 1) << w;
+
+  shift = maxbits - FLS(frac[0] | frac[1]) - 1;
+  if (shift >= 0) {
+    frac[0] <<= shift;
+    frac[1] <<= shift;
+  }
+  else {
+    frac[0] >>= -shift;
+    frac[0] &= ((contlog_t)1 << (maxbits + shift)) - 1;
+    frac[1] >>= -shift;
+    frac[1] &= ((contlog_t)1 << (maxbits + shift)) - 1;
+  }
 
   contlog_div_t gmean = isqrt_prod(frac[0], frac[1]);
   contlog_t mix = 0;
@@ -612,7 +619,7 @@ splat2(contlog_t i, contlog_t j, contlog_t k)
 int main(int argc, char *argv[])
 {
   if (argc == 1) {
-    contlog_t i = 2;
+    contlog_t i = 1;
     while (i < 1<<30) {
       int n, d;
       contlog_to_frac(i, &n, &d);
