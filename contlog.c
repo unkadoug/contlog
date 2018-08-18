@@ -417,6 +417,8 @@ contlog_sqrt(contlog_t operand)
 {
   const unsigned int maxbits = 8*sizeof(contlog_t);
   contlog_t hibit = (contlog_t)1 << (maxbits - 1);
+  if (operand < 0)
+    return (hibit);
 
   contlog_t frac[2];
   contlog_to_frac(operand, &frac[1], &frac[0]);
