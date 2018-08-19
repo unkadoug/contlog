@@ -422,7 +422,7 @@ contlog_sqrt(contlog_t operand)
 
   contlog_t frac[2];
   contlog_to_frac(operand, &frac[1], &frac[0]);
-  unsigned int numer = FLS(frac[0]) < FLS(frac[1]) && frac[0] < frac[1];
+  unsigned int numer = frac[0] < frac[1];
   int shift = (FLS(frac[numer]) - FLS(frac[numer^1])) & ~1;
   if (frac[numer] < frac[numer^1] << shift)
     shift -= 2;
