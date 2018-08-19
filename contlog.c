@@ -186,16 +186,23 @@ contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
   int neg = (operand & hibit) != 0;
   if (neg)
     operand = -operand;
-  int inv = (operand & (hibit >> 1)) != 0;
-  if (inv)
-    operand = -operand & ~hibit;
-  int shift = maxbits - 2 - FLS(operand);
-  operand <<= shift;
+  int shift;
+  if (operand >> (maxbits - 2)) {
+    shift = maxbits - 2 - FLS(operand ^ (hibit - 1));
+    operand <<= shift;
+    operand ^= hibit;
+  }
+  else {
+    shift = FLS(operand) - maxbits + 2;
+    operand <<= -shift;
+  }
 
   int numer = 1;
   contlog_t frac[2][2] = {{1, 0}, {0, 1}};
 
-  if (operand != 0) {
+  if (operand == hibit)
+    numer = 0;
+  else if (operand != 0) {
     contlog_t bound[2][2];
     contlog_to_frac_ubound(operand-1, &bound[0][0]);
     contlog_to_frac_ubound(operand, &bound[1][0]);
@@ -257,16 +264,27 @@ contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
 	break;
       numer ^= 1;
     }
+    if (shift >= 0) {
+      int shift2 = FFS(frac[numer][1]) - 1;
+      if (shift2 > shift)
+	shift2 = shift;
+      shift -= shift2;
+      frac[numer][0] <<= shift;
+      frac[numer][1] >>= shift2;
+    }
+    else {
+      int shift2 = FFS(frac[numer][0]) - 1;
+      if (shift2 > -shift)
+	shift2 = -shift;
+      shift += shift2;
+      frac[numer][0] >>= shift2;
+      frac[numer][1] <<= -shift;
+    }
   }
     
-  int right_shift = FFS(frac[numer][0]) - 1;
-  if (right_shift > shift)
-    right_shift = shift;
-  shift -= right_shift;
-  frac[numer][0] >>= right_shift;
-  frac[numer][1] <<= shift;
-  *n = frac[numer][inv];
-  *d = frac[numer][inv^1];
+
+  *n = frac[numer][0];
+  *d = frac[numer][1];
   
   if (neg)
     *n = -*n;
