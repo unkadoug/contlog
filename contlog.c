@@ -424,7 +424,7 @@ contlog_sqrt(contlog_t operand)
     return (hibit);
 
   contlog_t frac[2];
-  contlog_load_arg(operand, frac);
+  (void)contlog_decode(operand, frac);
   unsigned int numer = frac[0] < frac[1];
   int shift = (FLS(frac[numer]) - FLS(frac[numer^1])) & ~1;
   if (frac[numer] < frac[numer^1] << shift)
