@@ -113,6 +113,9 @@ contlog_fold(contlog_t operand, contlog_t box[], int nDims)
   return &box[idx_n1];
 }
 
+/*
+ * Translate operand into fraction frac[] = {denom, numer}.
+ */
 static int
 contlog_decode(contlog_t operand, contlog_t frac[])
 {
@@ -127,9 +130,9 @@ contlog_decode(contlog_t operand, contlog_t frac[])
     neg = 0;
     operand ^= operand << 1;
   }
-  frac[0] = 0;
-  frac[1] = 1;
-  unsigned int numer = 1;
+  frac[0] = 1;
+  frac[1] = 0;
+  unsigned int numer = 0;
   unsigned int invpos = maxbits - (SIGNED(contlog_t) ? 1 : 0);
   unsigned int w = operand ? FFS(operand) - 1 : invpos;
   while (w < invpos) {
@@ -150,7 +153,7 @@ contlog_load_arg(contlog_t operand, contlog_t frac[])
   int neg = contlog_decode(operand, frac);
   int shift = maxbits - FLS(frac[0] | frac[1]) - 1;
   if (neg)
-    frac[0] = -frac[0];
+    frac[1] = -frac[1];
   frac[0] <<= shift;
   frac[1] <<= shift;
 }
@@ -303,7 +306,7 @@ frac_to_contlog(contlog_t n, contlog_t d)
   contlog_t frac[2];
   frac[neg] = d;
   frac[neg^1] = n;
-  unsigned int numer = (frac[0] < frac[1]);
+  unsigned int numer = frac[0] < frac[1];
 
   while (frac[numer^1] != 0 && w > 0) {
     int shift = lgratio(frac[numer], frac[numer^1]);
@@ -421,7 +424,7 @@ contlog_sqrt(contlog_t operand)
     return (hibit);
 
   contlog_t frac[2];
-  contlog_to_frac(operand, &frac[1], &frac[0]);
+  contlog_load_arg(operand, frac);
   unsigned int numer = frac[0] < frac[1];
   int shift = (FLS(frac[numer]) - FLS(frac[numer^1])) & ~1;
   if (frac[numer] < frac[numer^1] << shift)
@@ -480,10 +483,10 @@ contlog_incr(contlog_t operand)
   contlog_t frac[2];
   contlog_load_arg(operand, frac);
   if (sum_overflows(frac[0], frac[1])) {
-    frac[0] = (frac[0] + 1) >> 1;
-    frac[1] >>= 1;
+    frac[1] = (frac[1] + 1) >> 1;
+    frac[0] >>= 1;
   }
-  frac[0] += frac[1];
+  frac[1] += frac[0];
   return frac_to_contlog(frac[0], frac[1]);
 }
 
@@ -492,7 +495,7 @@ contlog_add(contlog_t op0, contlog_t op1)
 {
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
-  contlog_t box[] = {frac[0], frac[1], frac[1], 0};
+  contlog_t box[] = {frac[1], frac[0], frac[0], 0};
   contlog_t *b = box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
@@ -503,7 +506,7 @@ contlog_sub(contlog_t op0, contlog_t op1)
 {
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
-  contlog_t box[] = {-frac[0], frac[1], frac[1], 0};
+  contlog_t box[] = {-frac[1], frac[0], frac[0], 0};
   contlog_t *b = box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
@@ -514,7 +517,7 @@ contlog_mult(contlog_t op0, contlog_t op1)
 {
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
-  contlog_t box[] = {0, frac[1], frac[0], 0};
+  contlog_t box[] = {0, frac[0], frac[1], 0};
   contlog_t *b = box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
@@ -525,7 +528,7 @@ contlog_div(contlog_t op0, contlog_t op1)
 {
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
-  contlog_t box[] = {0, frac[0], frac[1], 0};
+  contlog_t box[] = {0, frac[1], frac[0], 0};
   contlog_t *b = box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
@@ -536,7 +539,7 @@ contlog_backdiv(contlog_t op0, contlog_t op1)
 {
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
-  contlog_t box[] = {frac[0], 0, 0, frac[1]};
+  contlog_t box[] = {frac[1], 0, 0, frac[0]};
   contlog_t *b = box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
@@ -547,7 +550,7 @@ contlog_atnsum(contlog_t op0, contlog_t op1)
 {
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
-  contlog_t box[] = {frac[0], frac[1], frac[1], -frac[0]};
+  contlog_t box[] = {frac[1], frac[0], frac[0], -frac[1]};
   contlog_t *b= box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
@@ -558,7 +561,7 @@ contlog_harmsum(contlog_t op0, contlog_t op1)
 {
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
-  contlog_t box[] = {0, frac[0], frac[0], frac[1]};
+  contlog_t box[] = {0, frac[1], frac[1], frac[0]};
   contlog_t *b= box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
