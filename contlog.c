@@ -70,8 +70,6 @@ contlog_fold(contlog_t operand, contlog_t box[], int nDims)
   }
 
   while (operand != 0) {
-    //    debug_print(operand, box, nDims);
-
     /* Swap the with-d face of the box with the without-d
      * face, and let idx_nopd identify the position of the constant
      * coefficient of the numerator in the new without-d face.
@@ -107,8 +105,6 @@ contlog_fold(contlog_t operand, contlog_t box[], int nDims)
       box[idx_n1^b] += box[idx_nopd^b];
     }
   }
-
-  //  debug_print(operand, box, nDims);
 
   return &box[idx_n1];
 }
@@ -193,7 +189,7 @@ contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
     operand ^= hibit;
   }
   else {
-    shift = FLS(operand) - maxbits + 2;
+    shift = FLS(operand) - (maxbits - 2);
     operand <<= -shift;
   }
 
@@ -334,48 +330,14 @@ frac_to_contlog(contlog_t n, contlog_t d)
     if (numer)
       operand |= (((contlog_t)1 << shift) - 1) << w;
     numer ^= 1;
-    frac[numer] <<= shift - 1;
+    if (--shift)
+      frac[numer] <<= shift;
     frac[numer^1] -= frac[numer];
   }
   if (numer)
     operand |= (contlog_t)1 << w;
   return operand;
 }
-
-/* is n + (r/abs(r)) * sqrt(abs(r)) negative? */
-static int
-surd_is_neg(contlog_t n, contlog_t r)
-{
-  return ((r < 0) ? (n < 0 || -r > n*n) :
-	  (r != 0) ? (n < 0 && r < n*n) : 0);
-}
-
-#if 0
-contlog_t
-surd_to_contlog(contlog_t n, contlog_t d, contlog_t r)
-{
-  contlog_t operand = 0;
-  int w = 8 * sizeof(contlog_t);
-  unsigned int neg = 0;
-  unsigned int neg_surd = surd_is_neg(n, r);
-
-  if (SIGNED(contlog_t)) {
-    if (d >> SGNBIT_POS(contlog_t)) {
-      d = -d;
-      neg = !neg_surd;
-    }
-    else if (d != 0)
-      neg = neg_surd;
-
-    if (neg_surd) {
-      n = -n;
-      r = -r;
-    }
-    operand |= neg << --w;
-  }
-
-}
-#endif
 
 #define CONTLOG_CAST(T, val) ((sizeof(T) > sizeof(val) ?	\
 	((T)(val) << 8*(sizeof(T)-sizeof(val))) :	\
@@ -393,17 +355,14 @@ static inline void
 isqrt_help(contlog_div_t *res, contlog_t arg)
 {
   int place = res->quot == 0 ?
-    ((FLS(arg) + 1 )& ~1) :
-    8 * sizeof(contlog_t);
-  while (place > 0) {
-    place -= 2;
+    ((FLS(arg) + 1) / 2) :
+    4 * sizeof(contlog_t);
+  while (place-- > 0) {
     res->quot <<= 1;
     res->rem <<= 2;
-    res->rem += (arg >> place) & 3;
-    if ((res->rem - 1) / 2 >= res->quot) {
-      res->rem -= 2 * res->quot + 1;
-      ++res->quot;
-    }
+    res->rem += (arg >> 2*place) & 3;
+    if ((res->rem - 1) / 2 >= res->quot)
+      res->rem -= 1 + 2 * res->quot++;
   }
 }
 
@@ -444,14 +403,11 @@ contlog_sqrt(contlog_t operand)
   contlog_t frac[2];
   (void)contlog_decode(operand, frac);
   unsigned int numer = frac[0] < frac[1];
-  int shift = (FLS(frac[numer]) - FLS(frac[numer^1])) & ~1;
-  if (frac[numer] < frac[numer^1] << shift)
-    shift -= 2;
-  frac[numer^1] <<= shift;
+  int shift = (lgratio(frac[numer], frac[numer^1]) - 1) / 2;
+  frac[numer^1] <<= 2 * shift;
 
   int w = 8 * sizeof(contlog_t) - 1;
   operand = 0;
-  shift /= 2;
   w -= shift;
   if (numer)
     operand |= (((contlog_t)1 << shift) - 1) << w;
@@ -472,8 +428,6 @@ contlog_sqrt(contlog_t operand)
   contlog_t mix = 0;
   while (frac[numer^1] != 0 && w > 0) {
     int shift = lgratio(gmean.quot + mix, frac[numer^1]);
-    if (shift <= 0)
-      abort();
     if (shift > w)
       break;
     w -= shift;
@@ -487,8 +441,6 @@ contlog_sqrt(contlog_t operand)
     }
     frac[numer^1] -= (frac[numer] - mix) - mix;
     mix = frac[numer] - mix;
-    //    fprintf(stderr, "shift %d\t", shift);
-    //    debug_print(operand, frac, 1);
   }
   if (numer)
     operand |= (contlog_t)1 << w;
@@ -569,7 +521,7 @@ contlog_atnsum(contlog_t op0, contlog_t op1)
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
   contlog_t box[] = {frac[1], frac[0], frac[0], -frac[1]};
-  contlog_t *b= box;
+  contlog_t *b = box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
 }
@@ -580,7 +532,7 @@ contlog_harmsum(contlog_t op0, contlog_t op1)
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
   contlog_t box[] = {0, frac[1], frac[1], frac[0]};
-  contlog_t *b= box;
+  contlog_t *b = box;
   b = contlog_fold(op0, b, 2);
   return frac_to_contlog(b[0], b[1]);
 }
@@ -619,7 +571,7 @@ print_frac(contlog_t operand)
 
 static int usage(const char *cmd)
 {
-printf("Usage: '%s x' or '%s x op` or '%s x op y', where:\n"
+  printf("Usage: '%s x' or '%s x op` or '%s x op y', where:\n"
        "x and y are rationals, expressed as fractions like 3/7 or as hex representations,\n"
        "and\n"
        "op is from '+', '-', '*', '/', '\\' (backward division), 'H' (harmonic sum), 'T' (arctangent sum).\n"
@@ -629,44 +581,8 @@ printf("Usage: '%s x' or '%s x op` or '%s x op y', where:\n"
     return 0;
 }
 
-static void
-splat(contlog_t i, contlog_t j, contlog_t n, contlog_t d)
-{
-  printf("%08x\t%08x\t%d/%d\n", i, j, n, d);
-}
-
-static void
-splat2(contlog_t i, contlog_t j, contlog_t k)
-{
-  int ni, di;
-  contlog_to_frac(i, &ni, &di);
-  int nj, dj;
-  contlog_to_frac(j, &nj, &dj);
-  int nk, dk;
-  contlog_to_frac(k, &nk, &dk);
-
-  printf("x = %08x (%d/%d), sqrt(x)=%08x (%d/%d), x/sqrt(x) = %08x (%d/%d)\n",
-	 i, ni, di, j, nj, dj, k, nk, dk);
-}
-
 int main(int argc, char *argv[])
 {
-  if (argc == 1) {
-    contlog_t i = 1;
-    while (i < 1<<30) {
-      int n, d;
-      contlog_to_frac(i, &n, &d);
-      contlog_t j = frac_to_contlog(n, d);
-      if (i != j)
-	splat(i, j, n, d);
-      j = contlog_sqrt(i);
-      contlog_t k = contlog_div(i,j);
-      if (j - k > 2 || k - j > 2)
-	splat2(i, j, k);
-      ++i;
-    }
-  }
-
   if (argc == 1)
     return usage(argv[0]);
 
