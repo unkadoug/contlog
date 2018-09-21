@@ -1,7 +1,4 @@
-#include <stdlib.h>
-
 #include <string.h>
-#include <stdio.h>
 
 typedef int contlog_t;
 #define FLS(val) (sizeof(val) == sizeof(long long) ? flsll(val) :	\
@@ -17,6 +14,14 @@ typedef int contlog_t;
 #define MINVAL(T) (SIGNED(T) ? -(T)1 << SGNBIT_POS(T) : 0)
 #define MAXVAL(T) (~MINVAL(T))
 #define MAX2PWR(T) ((T)1 << (SGNBIT_POS(T) - SIGNED(T)))
+
+static inline int
+lobit(contlog_t operand)
+{
+  unsigned int invpos = 8*sizeof(contlog_t) - (SIGNED(contlog_t) ? 1 : 0);
+  return (operand ? FFS(operand) - 1 : invpos);
+}
+
 
 /* use continued logrithms, as described by Gosper,
  * but with logs a, b, c, d, ... represented as bits
@@ -55,12 +60,12 @@ contlog_decode(contlog_t operand, contlog_t frac[])
   frac[1] = 0;
   unsigned int numer = 0;
   unsigned int invpos = maxbits - (SIGNED(contlog_t) ? 1 : 0);
-  unsigned int w = operand ? FFS(operand) - 1 : invpos;
+  unsigned int w = lobit(operand);
   while (w < invpos) {
     operand ^= (contlog_t)1 << w;
     numer ^= 1;
     frac[numer] += frac[numer^1];
-    unsigned int next_w = operand ? FFS(operand) - 1 : invpos;
+    unsigned int next_w = lobit(operand);
     frac[numer] <<= next_w - w - 1;
     w = next_w;
   }

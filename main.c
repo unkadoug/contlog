@@ -1,4 +1,5 @@
 #include "contlog.h"
+#include <stdio.h>
 
 contlog_t
 sscan_frac(const char *s)

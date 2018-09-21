@@ -90,14 +90,14 @@ contlog_to_frac_ubound(contlog_t operand, contlog_t frac[])
   operand ^= (operand << 1) | 1;
   unsigned int numer = 1;
   unsigned int invpos = maxbits - (SIGNED(contlog_t) ? 1 : 0);
-  unsigned int w = operand ? FFS(operand) - 1 : invpos;
+  unsigned int w = lobit(operand);
   frac[numer] = 1 << w;
   frac[numer^1] = 1;
   while (w < invpos) {
     operand ^= (contlog_t)1 << w;
     numer ^= 1;
     frac[numer] += frac[numer^1];
-    unsigned int next_w = operand ? FFS(operand) - 1 : invpos;
+    unsigned int next_w = lobit(operand);
     frac[numer] <<= next_w - w - 1;
     w = next_w;
   }
