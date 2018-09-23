@@ -1,19 +1,10 @@
 #include <string.h>
 
 typedef int contlog_t;
-#define FLS(val) (sizeof(val) == sizeof(long long) ? flsll(val) :	\
-		  sizeof(val) == sizeof(long) ? flsl(val) :		\
-		  sizeof(val) == sizeof(int) ? fls(val) :		\
-		  fls(val & ((1 << 8*sizeof(val)) - 1)))
-#define FFS(val) (sizeof(val) == sizeof(long long) ? ffsll(val) :	\
-		  sizeof(val) == sizeof(long) ? ffsl(val) :		\
-		  ffs(val))
-
 #define SIGNED(T) (-(T)1 < 0)
 #define SGNBIT_POS(T) (8*sizeof(T) - 1)
 #define MINVAL(T) (SIGNED(T) ? -(T)1 << SGNBIT_POS(T) : 0)
 #define MAXVAL(T) (~MINVAL(T))
-#define MAX2PWR(T) ((T)1 << (SGNBIT_POS(T) - SIGNED(T)))
 
 
 /* use continued logrithms, as described by Gosper,

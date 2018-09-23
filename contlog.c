@@ -4,6 +4,13 @@
 #include <stdio.h>
 #include "contlog.h"
 
+#define FLS(val) (sizeof(val) == sizeof(long long) ? flsll(val) :	\
+		  sizeof(val) == sizeof(long) ? flsl(val) :		\
+		  sizeof(val) == sizeof(int) ? fls(val) :		\
+		  fls(val & ((1 << 8*sizeof(val)) - 1)))
+#define FFS(val) (sizeof(val) == sizeof(long long) ? ffsll(val) :	\
+		  sizeof(val) == sizeof(long) ? ffsl(val) :		\
+		  ffs(val))
 
 static void
 debug_print(contlog_t operand, contlog_t box[], int nDims)
