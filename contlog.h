@@ -15,13 +15,6 @@ typedef int contlog_t;
 #define MAXVAL(T) (~MINVAL(T))
 #define MAX2PWR(T) ((T)1 << (SGNBIT_POS(T) - SIGNED(T)))
 
-static inline int
-lobit(contlog_t operand)
-{
-  unsigned int invpos = 8*sizeof(contlog_t) - (SIGNED(contlog_t) ? 1 : 0);
-  return (operand ? FFS(operand) - 1 : invpos);
-}
-
 
 /* use continued logrithms, as described by Gosper,
  * but with logs a, b, c, d, ... represented as bits
@@ -38,52 +31,7 @@ sum_overflows(contlog_t a, contlog_t b)
 }
 
 contlog_t *contlog_fold(contlog_t operand, contlog_t box[], int nDims);
-
-/*
- * Translate operand into fraction frac[] = {denom, numer}.
- */
-static int
-contlog_decode(contlog_t operand, contlog_t frac[])
-{
-  const unsigned int maxbits = 8*sizeof(operand);
-  int neg;
-  if (SIGNED(contlog_t)) {
-    neg = (operand >> (maxbits-1));
-    operand ^= operand << 1;
-    operand &= ~((contlog_t)1 << SGNBIT_POS(contlog_t));
-  }
-  else {
-    neg = 0;
-    operand ^= operand << 1;
-  }
-  frac[0] = 1;
-  frac[1] = 0;
-  unsigned int numer = 0;
-  unsigned int invpos = maxbits - (SIGNED(contlog_t) ? 1 : 0);
-  unsigned int w = lobit(operand);
-  while (w < invpos) {
-    operand ^= (contlog_t)1 << w;
-    numer ^= 1;
-    frac[numer] += frac[numer^1];
-    unsigned int next_w = lobit(operand);
-    frac[numer] <<= next_w - w - 1;
-    w = next_w;
-  }
-  return neg;
-}
-
-static void
-contlog_load_arg(contlog_t operand, contlog_t frac[])
-{
-  const unsigned int maxbits = 8*sizeof(operand);
-  int neg = contlog_decode(operand, frac);
-  int shift = maxbits - FLS(frac[0] | frac[1]) - 1;
-  if (neg)
-    frac[1] = -frac[1];
-  frac[0] <<= shift;
-  frac[1] <<= shift;
-}
-
+void contlog_load_arg(contlog_t operand, contlog_t frac[]);
 void contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d);
 contlog_t frac_to_contlog(contlog_t n, contlog_t d);
 contlog_t contlog_sqrt(contlog_t operand);

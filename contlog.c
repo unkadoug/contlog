@@ -21,6 +21,58 @@ debug_print(contlog_t operand, contlog_t box[], int nDims)
 }
 
 
+static inline int
+lobit(contlog_t operand)
+{
+  unsigned int invpos = 8*sizeof(contlog_t) - (SIGNED(contlog_t) ? 1 : 0);
+  return (operand ? FFS(operand) - 1 : invpos);
+}
+
+/*
+ * Translate operand into fraction frac[] = {denom, numer}.
+ */
+static int
+contlog_decode(contlog_t operand, contlog_t frac[])
+{
+  const unsigned int maxbits = 8*sizeof(operand);
+  int neg;
+  if (SIGNED(contlog_t)) {
+    neg = (operand >> (maxbits-1));
+    operand ^= operand << 1;
+    operand &= ~((contlog_t)1 << SGNBIT_POS(contlog_t));
+  }
+  else {
+    neg = 0;
+    operand ^= operand << 1;
+  }
+  frac[0] = 1;
+  frac[1] = 0;
+  unsigned int numer = 0;
+  unsigned int invpos = maxbits - (SIGNED(contlog_t) ? 1 : 0);
+  unsigned int w = lobit(operand);
+  while (w < invpos) {
+    operand ^= (contlog_t)1 << w;
+    numer ^= 1;
+    frac[numer] += frac[numer^1];
+    unsigned int next_w = lobit(operand);
+    frac[numer] <<= next_w - w - 1;
+    w = next_w;
+  }
+  return neg;
+}
+
+void
+contlog_load_arg(contlog_t operand, contlog_t frac[])
+{
+  const unsigned int maxbits = 8*sizeof(operand);
+  int neg = contlog_decode(operand, frac);
+  int shift = maxbits - FLS(frac[0] | frac[1]) - 1;
+  if (neg)
+    frac[1] = -frac[1];
+  frac[0] <<= shift;
+  frac[1] <<= shift;
+}
+
 contlog_t *
 contlog_fold(contlog_t operand, contlog_t box[], int nDims)
 {
@@ -222,11 +274,9 @@ frac_to_contlog(contlog_t n, contlog_t d)
   frac[neg] = d;
   frac[neg^1] = n;
   unsigned int numer = frac[0] < frac[1];
-
-  while (frac[numer^1] != 0 && w > 0) {
-    int shift = lgratio(frac[numer], frac[numer^1]);
-    if (shift > w)
-      break;
+  int shift;
+  while (frac[numer^1] != 0 &&
+	 (shift = lgratio(frac[numer], frac[numer^1])) <= w) {
     w -= shift;
     if (numer)
       operand |= (((contlog_t)1 << shift) - 1) << w;
@@ -320,13 +370,10 @@ contlog_sqrt(contlog_t operand)
     frac[1] >>= -shift;
     frac[1] &= ((contlog_t)1 << (maxbits + shift)) - 1;
   }
-
   contlog_div_t gmean = isqrt_prod(frac[0], frac[1]);
   contlog_t mix = 0;
-  while (frac[numer^1] != 0 && w > 0) {
-    int shift = lgratio(gmean.quot + mix, frac[numer^1]);
-    if (shift > w)
-      break;
+  while (frac[numer^1] != 0 &&
+	 (shift = lgratio(gmean.quot + mix, frac[numer^1])) <= w) {
     w -= shift;
     if (numer)
       operand |= (((contlog_t)1 << shift) - 1) << w;
