@@ -42,7 +42,7 @@ contlog_incr(contlog_t operand)
     frac[0] >>= 1;
   }
   frac[1] += frac[0];
-  return frac_to_contlog(frac[0], frac[1]);
+  return frac_to_contlog(frac[1], frac[0]);
 }
 
 static contlog_t
