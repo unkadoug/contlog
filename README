@@ -1,5 +1,7 @@
 Contlog - representing numbers as continued logarithms
 
+Introduction
+
 In his notes on continued fraction arithmetic, Gosper introduced
 continued logarithms as an alternative to continued fractions for
 representing real numbers.  Continued logarithms are based on ones and
@@ -32,17 +34,23 @@ of a string changes its value, so it seems that a length must be
 stored separately, or a special terminating character must be added.
 It is also not immediately clear which of two given bitstrings
 represents the larger of two values.  Also, numbers less than one are
-not given a representation.  To address all that, define the contlog
-representation of a number as follows.
+not given a representation.
+
+Representation
+
+To address those problems, define the contlog representation of a
+number as follows.
 
 An incomplete string of 0's of infinite length, represents oo.
 
-If s is an incomplete string that represents the number x, then bx is
-an incomplete string that represents the number 2x, if b is the first
-bit of x, and 1+1/x if b is not the first bit of x.  If s is an
-incomplete string that will have no more bits prepended to it, then
-the unsigned completed string represents the number x if the first bit is 1, and
-1/x if the first bit is 0.
+If s is an incomplete string that represents the number x, and b is a
+bit to be prepended to the incomplete string, then bx is an incomplete
+string that represents the number 2x, if b is the first bit of x, and
+1+1/x if b is not the first bit of x.
+
+If s is an incomplete string that will have no more bits prepended to
+it, then the unsigned completed string represents the number x if the
+first bit of s is 1, and 1/x otherwise.
 
 In the unsigned contlog representation, the first few positive integers are
 
@@ -92,6 +100,8 @@ If two twos-complement integers i and j satisfy i < j, and those bits
 are interpreted instead as contlog representations of rational numbers
 contlog(i) and contlog(j), then necessarily contlog(i) < contlog(j).
 
+Extracting ratios from this representation
+
 While this representation is great for representing exactly rational
 numbers with small numerator and denominator in just a few bits, it
 sacrifices the representation of large numbers, especially ones near
@@ -114,3 +124,44 @@ for the others, it does not.  Otherwise, two consecutive bit strings
 could map to the same ratio.  For the case of 127/1, this produces the
 expect result 127/1.  For 1000/999, the result looks like 1000/999,
 and not 470999/470528.
+
+Arithmetic
+
+Where Gosper seeks to compute with unbounded continued fractions, this
+implementation aspires only to fixed-width operands and results.
+Thus, it is feasible to completely decode one operand into a numerator
+and denominator before considering the other operand at all, and this
+implementation does that.  Those two values are scaled up, doubling
+both until one or both of them would overflow if doubled again.  The
+values are used to form a homographic function that is evaluated at
+the value of the other operand to compute the composition of the two
+operands.  So, for example, to compute x + y, first find that y=n/d, and then form
+
+(n + dx) / (d + 0x)
+
+and update the four coefficients as the leading bits of x are
+consumed.  When such an update would lead to overflow, scale the
+coefficents down first, to prevent the overflow.  The result can be a
+value with a zero denominator, when the computed value is too large or
+small to be approximated in the number of available bits.
+
+Test program
+
+The 'contlog' program produced from this source code is a simple
+calculator that uses the contlog representation, and allows both
+integer ratios and hexadecimal bitstrings to be used to represent
+operands, and displays results in both forms, and also in a familiar
+floating point form.  Sample usage:
+
+$ contlog 4/7
+x: 4/7 (26000000) =     0.571428571429
+$ contlog 4/7 - 5/9
+x: 4/7 (26000000) =     0.571428571429
+y: 5/9 (24000000) =     0.555555555556
+x-y: 1/63 (01042260) =     0.015873015873
+$ contlog 55555555
+x: 2178309/1346269 (55555555) =     1.618033988750
+$ contlog 2/1 /
+x: 2/1 (60000000) =     2.000000000000
+sqrt(x): 8119/5741 (4e38e38e) =     1.414213551646
+x/sqrt(x): 8119/5741 (4e38e38e) =     1.414213551646
