@@ -18,7 +18,7 @@ debug_print(contlog_t operand, contlog_t box[], int nDims)
   int sh = 4*sizeof(contlog_t);
   __uintmax_t val = operand;
   val -= val >> sh >> sh << sh << sh;
-  fprintf(stderr, " %0*jx", 2*sizeof(operand), val);
+  fprintf(stderr, " %0*jx", (int)(2*sizeof(operand)), val);
   for (int b = 0; b < (1 << nDims); ++b) {
     __intmax_t val = box[b];
     val -= val >> sh >> sh << sh << sh;
@@ -44,7 +44,7 @@ contlog_decode(contlog_t operand, contlog_t frac[])
   const unsigned int maxbits = 8*sizeof(operand);
   int neg;
   if (SIGNED(contlog_t)) {
-    neg = (operand >> (maxbits-1));
+    neg = ((operand >> (maxbits-1)) & 1);
     operand ^= operand << 1;
     operand &= ~((contlog_t)1 << SGNBIT_POS(contlog_t));
   }
@@ -52,9 +52,9 @@ contlog_decode(contlog_t operand, contlog_t frac[])
     neg = 0;
     operand ^= operand << 1;
   }
-  frac[0] = 1;
-  frac[1] = 0;
-  unsigned int numer = 0;
+  frac[neg] = 1;
+  frac[!neg] = 0;
+  unsigned int numer = neg;
   unsigned int invpos = maxbits - (SIGNED(contlog_t) ? 1 : 0);
   unsigned int w = lobit(operand);
   while (w < invpos) {
@@ -107,6 +107,7 @@ contlog_fold(contlog_t operand, contlog_t box[], int nDims)
      * face, and let idx_nopd identify the position of the constant
      * coefficient of the numerator in the new without-d face.
      */
+    debug_print(operand, box, nDims);
     unsigned int idx_nopd = idx_n1;
     idx_n1 ^= bit_d;
 
@@ -122,22 +123,19 @@ contlog_fold(contlog_t operand, contlog_t box[], int nDims)
     int overflow = 0;
     for (b = 0; !overflow && b < bit_d; ++b) {
       contlog_t addend = box[idx_n1^b];
-      if (shift > 0) {
-	addend += 1 << (shift - 1);
-	addend >>= shift;
-      }
+      addend += (contlog_t)1 << shift >> 1;
+      addend >>= shift;
       overflow = sum_overflows(addend, box[idx_nopd^b]);
     }
     shift += overflow;
     for (b = 0; b < bit_d; ++b) {
-      if (shift > 0) {
-	box[idx_n1^b] += 1 << (shift - 1);
-	box[idx_n1^b] >>= shift;
-	box[idx_nopd^b] >>= overflow;
-      }
+      box[idx_n1^b] += (contlog_t)1 << shift >> 1;
+      box[idx_n1^b] >>= shift;
+      box[idx_nopd^b] >>= overflow;
       box[idx_n1^b] += box[idx_nopd^b];
     }
   }
+  debug_print(operand, box, nDims);
 
   return &box[idx_n1];
 }
@@ -395,5 +393,84 @@ contlog_sqrt(contlog_t operand)
   }
   if (numer)
     operand |= (contlog_t)1 << w;
+  return operand;
+}
+
+contlog_t
+contlog_log1p(contlog_t operand)
+{
+  const unsigned int maxbits = 8 * sizeof(operand);
+  contlog_t frac[2];
+  int neg = contlog_decode(operand, frac);
+
+  unsigned int x = frac[1];
+  unsigned int y = frac[0];
+  /* log1p(-x/y) == -log1p(x/(y-x)) */
+  if (neg) {
+    if (y <= x)
+      return (contlog_t)1 << (maxbits - 1);
+    y -= x;
+  }
+  unsigned box[] = {0, y, x, y};
+  contlog_t ix = 0;
+  unsigned int numer = 0;
+  int w = maxbits - 1;
+  int overflow = 0;
+  operand = 0;
+  for (int i = 2; ; ++i) {
+    /* Extract info from box to set operand bits */
+    if (box[numer^2] <= box[numer^3])
+      numer ^= 3;
+    int shift;
+    while ((shift = lgratio(box[numer], box[numer^1])) <= w && shift > 0) {
+      box[numer^1] <<= shift - 1;
+      box[numer^3] <<= shift - 1;
+      int ival_spans_2 = box[numer^2] / 2 >= box[numer^3];
+      if (ival_spans_2)
+	--shift;
+      w -= shift;
+      if (numer == 0)
+	operand  |= (((contlog_t)1 << shift) - 1) << w;
+      if (ival_spans_2) {
+	shift = 1;
+	break;
+      }
+      numer ^= 3;
+      box[numer^1] -= box[numer];
+      box[numer^3] -= box[numer^2];
+    }
+    if (shift > w)
+      break;
+
+    /* Update box to shrink range containing the result */
+    int j = (i&1) ? 2 : 0;
+    if (j == 0)
+      ix += x;
+    unsigned long long quot = (j == 0) ? 2 * y : i;
+    unsigned long long ixL = ix;
+    unsigned long long box0 = ixL * box[j^0];
+    unsigned long long box1 = ixL * box[j^1];
+    if (overflow > 0) {
+      box0 = (box0 + (1 << (overflow - 1))) >> overflow;
+      box1 = (box1 + (1 << (overflow - 1))) >> overflow;
+    }
+    box0 += quot * box[j^2];
+    box1 += quot * box[j^3];
+    overflow = flsll(box0 | box1) - maxbits;
+    if (overflow > 0) {
+      box0 = (box0 + (1ULL << (overflow - 1))) >> overflow;
+      box1 = (box1 + (1ULL << (overflow - 1))) >> overflow;
+    }
+    box[j^0] = box0;
+    box[j^1] = box1;
+    printf("%u/%u %u/%u\n", box[numer^0], box[numer^1], box[numer^2], box[numer^3]);
+    printf("%g %g\n", (unsigned)box[numer^0]/(double)box[numer^1],
+	   (unsigned)box[numer^2]/(double)(unsigned)box[numer^3]);
+  }
+  if (numer == 0)
+    operand |= (contlog_t)1 << w;
+    
+  if (neg)
+    operand = -operand;
   return operand;
 }

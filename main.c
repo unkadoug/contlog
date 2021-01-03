@@ -30,7 +30,7 @@ print_frac(contlog_t operand)
   __intmax_t opx = operand;
   int sh = 4*sizeof(contlog_t);
   opx -= opx >> sh >> sh << sh << sh;
-  printf("%jd/%jd (%0*jx) = %18.12f\n", nx, dx, 2*sizeof(contlog_t), opx, (double)n/d);
+  printf("%jd/%jd (%0*jx) = %18.12f\n", nx, dx, (int)(2*sizeof(contlog_t)), opx, (double)n/d);
 }
 
 static int usage(const char *cmd)
@@ -72,6 +72,12 @@ int main(int argc, char *argv[])
 
       printf("x/sqrt(x): ");
       print_frac(contlog_div(a, r));
+      break;
+
+    case 'l':
+      printf("log1p(x): ");
+      contlog_t l = contlog_log1p(a);
+      print_frac(l);
       break;
 
     default:
