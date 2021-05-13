@@ -80,6 +80,12 @@ int main(int argc, char *argv[])
       print_frac(l);
       break;
 
+    case 'e':
+      printf("exp(x): ");
+      contlog_t e = contlog_exp(a);
+      print_frac(e);
+      break;
+
     default:
       break;
     }

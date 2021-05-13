@@ -27,6 +27,7 @@ void contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d);
 contlog_t frac_to_contlog(contlog_t n, contlog_t d);
 contlog_t contlog_sqrt(contlog_t operand);
 contlog_t contlog_log1p(contlog_t operand);
+contlog_t contlog_exp(contlog_t operand);
 
 #define CONTLOG_CAST(T, val) ((sizeof(T) > sizeof(val) ?	\
 	((T)(val) << 8*(sizeof(T)-sizeof(val))) :	\

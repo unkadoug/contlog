@@ -1,5 +1,6 @@
 #include <stdlib.h>
 
+#include <assert.h>
 #include <string.h>
 #include <stdio.h>
 #include "contlog.h"
@@ -54,17 +55,21 @@ contlog_decode(contlog_t operand, contlog_t frac[])
   }
   frac[neg] = 1;
   frac[!neg] = 0;
+  unsigned int shift;
   unsigned int numer = neg;
   unsigned int invpos = maxbits - (SIGNED(contlog_t) ? 1 : 0);
   unsigned int w = lobit(operand);
-  while (w < invpos) {
-    operand ^= (contlog_t)1 << w;
+  while (operand != 0) {
+    operand ^= operand & -operand;
     numer ^= 1;
     frac[numer] += frac[numer^1];
-    unsigned int next_w = lobit(operand);
-    frac[numer] <<= next_w - w - 1;
-    w = next_w;
+    shift = lobit(operand) - w;
+    w += shift--;
+    frac[numer] <<= shift;
   }
+  shift = lobit(frac[0] | frac[1]);
+  frac[0] >>= shift;
+  frac[1] >>= shift;
   return neg;
 }
 
@@ -151,12 +156,12 @@ contlog_to_frac_ubound(contlog_t operand, contlog_t frac[])
   frac[numer] = 1 << w;
   frac[numer^1] = 1;
   while (w < invpos) {
-    operand ^= (contlog_t)1 << w;
+    operand ^= operand & -operand;
     numer ^= 1;
     frac[numer] += frac[numer^1];
-    unsigned int next_w = lobit(operand);
-    frac[numer] <<= next_w - w - 1;
-    w = next_w;
+    unsigned int shift = lobit(operand) - w;
+    w += shift--;
+    frac[numer] <<= shift;
   }
 }
 
@@ -247,6 +252,9 @@ contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
 static int
 lgratio(contlog_t n, contlog_t d)
 {
+  if (d == 0)
+    return 8 * sizeof(d);
+
   int lg = FLS(n) - FLS(d);
   if (n >= d << lg)
     ++lg;
@@ -396,6 +404,58 @@ contlog_sqrt(contlog_t operand)
   return operand;
 }
 
+struct contlog_extractor {
+  int w;
+  int numer;
+  int operand;
+};
+
+void
+contlog_extractor_init(struct contlog_extractor *xtractor, int bits)
+{
+  xtractor->w = bits;
+  xtractor->numer = 0;
+  xtractor->operand = 0;
+}
+
+int
+contlog_extract(struct contlog_extractor *xtractor, unsigned box[])
+{
+  int numer = xtractor->numer;
+  int w = xtractor->w;
+  int operand = xtractor->operand;
+
+  /* Extract info from box to set operand bits */
+  if (box[numer^2] <= box[numer^3])
+    numer ^= 3;
+  int shift;
+  while ((shift = lgratio(box[numer], box[numer^1])) <= w && shift > 0) {
+    box[numer^1] <<= shift - 1;
+    box[numer^3] <<= shift - 1;
+    int ival_spans_2 = box[numer^2] / 2 >= box[numer^3];
+    if (ival_spans_2)
+      --shift;
+    w -= shift;
+    if ((numer&1) == 0)
+      operand  |= (((contlog_t)1 << shift) - 1) << w;
+    if (ival_spans_2) {
+      shift = 1;
+      break;
+    }
+    numer ^= 3;
+    assert(box[numer^1] >= box[numer]);
+    assert(box[numer^3] >= box[numer^2]);
+    box[numer^1] -= box[numer];
+    box[numer^3] -= box[numer^2];
+  }
+  if (shift > w && (numer&1) == 0)
+    operand |= (contlog_t)1 << w;
+  xtractor->numer = numer;
+  xtractor->w = w;
+  xtractor->operand = operand;
+  return (shift > w);
+}
+
 contlog_t
 contlog_log1p(contlog_t operand)
 {
@@ -413,35 +473,10 @@ contlog_log1p(contlog_t operand)
   }
   unsigned box[] = {0, y, x, y};
   contlog_t ix = 0;
-  unsigned int numer = 0;
-  int w = maxbits - 1;
   int overflow = 0;
-  operand = 0;
-  for (int i = 2; ; ++i) {
-    /* Extract info from box to set operand bits */
-    if (box[numer^2] <= box[numer^3])
-      numer ^= 3;
-    int shift;
-    while ((shift = lgratio(box[numer], box[numer^1])) <= w && shift > 0) {
-      box[numer^1] <<= shift - 1;
-      box[numer^3] <<= shift - 1;
-      int ival_spans_2 = box[numer^2] / 2 >= box[numer^3];
-      if (ival_spans_2)
-	--shift;
-      w -= shift;
-      if (numer == 0)
-	operand  |= (((contlog_t)1 << shift) - 1) << w;
-      if (ival_spans_2) {
-	shift = 1;
-	break;
-      }
-      numer ^= 3;
-      box[numer^1] -= box[numer];
-      box[numer^3] -= box[numer^2];
-    }
-    if (shift > w)
-      break;
-
+  struct contlog_extractor xtract;
+  contlog_extractor_init(&xtract, maxbits - 1);
+  for (int i = 2; !contlog_extract(&xtract, box); ++i) {
     /* Update box to shrink range containing the result */
     int j = (i&1) ? 2 : 0;
     if (j == 0)
@@ -463,14 +498,67 @@ contlog_log1p(contlog_t operand)
     }
     box[j^0] = box0;
     box[j^1] = box1;
-    printf("%u/%u %u/%u\n", box[numer^0], box[numer^1], box[numer^2], box[numer^3]);
-    printf("%g %g\n", (unsigned)box[numer^0]/(double)box[numer^1],
-	   (unsigned)box[numer^2]/(double)(unsigned)box[numer^3]);
+    printf("%u/%u %u/%u\n", box[j^0], box[j^1], box[j^2], box[j^3]);
+    printf("%g %g\n", (unsigned)box[j^0]/(double)box[j^1],
+	   (unsigned)box[j^2]/(double)(unsigned)box[j^3]);
   }
-  if (numer == 0)
-    operand |= (contlog_t)1 << w;
+  operand = xtract.operand;
     
   if (neg)
     operand = -operand;
+  return operand;
+}
+
+/* Compute e**x by computing e**x/(1 + e**x) and shifting the result
+ * one position left.
+ */
+contlog_t
+contlog_exp(contlog_t operand)
+{
+  const unsigned int maxbits = 8 * sizeof(operand);
+  contlog_t frac[2];
+  int neg = contlog_decode(operand, frac);
+
+  unsigned int x = frac[1];
+  unsigned int y = frac[0];
+  
+  if (y == 0)
+    return (contlog_t)1 << (maxbits - 1);
+
+  unsigned long long ay = 6 * y;
+  unsigned box[] = {2 * x + 2 * y, 2 * x + 4 * y, x + 2 * y, 4 * y};
+
+  struct contlog_extractor xtract;
+  contlog_extractor_init(&xtract, maxbits);
+
+  while (!contlog_extract(&xtract, box)) {
+    /* Update box to shrink range containing the result */
+    unsigned long long box0 = box[0];
+    unsigned long long box1 = box[1];
+    unsigned long long box2 = box[2];
+    unsigned long long box3 = box[3];
+    box0 = ay * box2 + x * box0;
+    box1 = ay * box3 + x * box1;
+    ay += 4 * y;
+    assert(box0 > x * box2);
+    assert(box1 > x * box3);
+    box2 = box0 - x * box2;
+    box3 = box1 - x * box3;
+    int overflow = flsll(box0 | box1) - maxbits;
+    if (overflow > 0) {
+      box0 = (box0 + (1ULL << (overflow - 1))) >> overflow;
+      box1 = (box1 + (1ULL << (overflow - 1))) >> overflow;
+      box2 = (box2 + (1ULL << (overflow - 1))) >> overflow;
+      box3 = (box3 + (1ULL << (overflow - 1))) >> overflow;
+    }
+    box[0] = box0;
+    box[1] = box1;
+    box[2] = box2;
+    box[3] = box3;
+    xtract.numer ^= 2;
+  }
+  operand = xtract.operand;
+  if (neg)
+    operand = -operand ^ (1UL << (maxbits - 1));
   return operand;
 }
