@@ -472,24 +472,38 @@ contlog_log1p(contlog_t operand)
     y -= x;
   }
   unsigned box[] = {0, y, x, y};
-  contlog_t ix = 0;
   int overflow = 0;
   struct contlog_extractor xtract;
   contlog_extractor_init(&xtract, maxbits - 1);
   for (int i = 2; !contlog_extract(&xtract, box); ++i) {
     /* Update box to shrink range containing the result */
     int j = (i&1) ? 2 : 0;
-    if (j == 0)
-      ix += x;
-    unsigned long long quot = (j == 0) ? 2 * y : i;
-    unsigned long long ixL = ix;
-    unsigned long long box0 = ixL * box[j^0];
-    unsigned long long box1 = ixL * box[j^1];
-    if (overflow > 0) {
+    unsigned long long quot = (i&1) ? i : 2 * y;
+    unsigned long long p = i / 2 * (unsigned long long)x;
+    unsigned long long box0 = box[j^0];
+    unsigned long long box1 = box[j^1];
+    if (overflow <= 0) {
+      box0 *= p;
+      box1 *= p;
+    } else if (flsll(box0 | box1) + flsll(p) <= 64) {
+      box0 *= p;
+      box1 *= p;
+      box0 = (box0 + (1 << (overflow - 1))) >> overflow;
+      box1 = (box1 + (1 << (overflow - 1))) >> overflow;
+    } else {
+      int ov1 = flsll(box0 | box1) + flsll(p) - 64;
+      box0 = (box0 + (1 << (ov1 - 1))) >> ov1;
+      box1 = (box1 + (1 << (ov1 - 1))) >> ov1;
+      overflow -= ov1;
+      box0 *= p;
+      box1 *= p;
       box0 = (box0 + (1 << (overflow - 1))) >> overflow;
       box1 = (box1 + (1 << (overflow - 1))) >> overflow;
     }
+
+    assert(box0 <= box0 + quot * box[j^2]);
     box0 += quot * box[j^2];
+    assert(box1 <= box1 + quot * box[j^3]);
     box1 += quot * box[j^3];
     overflow = flsll(box0 | box1) - maxbits;
     if (overflow > 0) {
