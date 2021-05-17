@@ -299,7 +299,7 @@ frac_to_contlog(contlog_t n, contlog_t d)
     frac[numer^1] -= frac[numer];
   }
   if (numer)
-    operand |= (contlog_t)1 << w;
+    operand += (contlog_t)1 << w;
   return operand;
 }
 
@@ -400,7 +400,7 @@ contlog_sqrt(contlog_t operand)
     mix = frac[numer] - mix;
   }
   if (numer)
-    operand |= (contlog_t)1 << w;
+    operand += (contlog_t)1 << w;
   return operand;
 }
 
@@ -449,7 +449,7 @@ contlog_extract(struct contlog_extractor *xtractor, unsigned box[])
     box[numer^3] -= box[numer^2];
   }
   if (shift > w && (numer&1) == 0)
-    operand |= (contlog_t)1 << w;
+    operand += (contlog_t)1 << w;
   xtractor->numer = numer;
   xtractor->w = w;
   xtractor->operand = operand;
