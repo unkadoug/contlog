@@ -432,6 +432,8 @@ contlog_extract(struct contlog_extractor *xtractor, unsigned box[])
   while ((shift = lgratio(box[numer], box[numer^1])) <= w && shift > 0) {
     box[numer^1] <<= shift - 1;
     box[numer^3] <<= shift - 1;
+    assert(box[numer^0] >= box[numer^1]);
+    assert(box[numer^2] >= box[numer^3]);
     int ival_spans_2 = box[numer^2] / 2 >= box[numer^3];
     if (ival_spans_2)
       --shift;
@@ -442,11 +444,9 @@ contlog_extract(struct contlog_extractor *xtractor, unsigned box[])
       shift = 1;
       break;
     }
+    box[numer^0] -= box[numer^1];
+    box[numer^2] -= box[numer^3];
     numer ^= 3;
-    assert(box[numer^1] >= box[numer]);
-    assert(box[numer^3] >= box[numer^2]);
-    box[numer^1] -= box[numer];
-    box[numer^3] -= box[numer^2];
   }
   if (shift > w && (numer&1) == 0)
     operand += (contlog_t)1 << w;
@@ -560,10 +560,11 @@ contlog_exp(contlog_t operand)
     box3 = box1 - x * box3;
     int overflow = flsll(box0 | box1) - maxbits;
     if (overflow > 0) {
-      box0 = (box0 + (1ULL << (overflow - 1))) >> overflow;
-      box1 = (box1 + (1ULL << (overflow - 1))) >> overflow;
-      box2 = (box2 + (1ULL << (overflow - 1))) >> overflow;
-      box3 = (box3 + (1ULL << (overflow - 1))) >> overflow;
+      int up = xtract.numer == 0 || xtract.numer == 3;
+      box0 = ((box0 - up) >> overflow) + up;
+      box1 = ((box1 - !up) >> overflow) + !up;
+      box2 = ((box2 - !up) >> overflow) + !up;
+      box3 = ((box3 - up) >> overflow) + up;
     }
     box[0] = box0;
     box[1] = box1;
