@@ -426,24 +426,24 @@ contlog_extract(struct contlog_extractor *xtractor, unsigned box[])
   int operand = xtractor->operand;
 
   /* Extract info from box to set operand bits */
-  if (box[numer^2] <= box[numer^3])
+  if (box[numer^2] < box[numer^3]) {
     numer ^= 3;
+    if (w < 8 * sizeof(operand) - 1) {
+      assert(box[numer^0] >= box[numer^1]);
+      box[numer^0] -= (box[numer^0] - box[numer^1] + 1) / 2;
+      assert(box[numer^2] >= box[numer^3]);
+      box[numer^2] -= (box[numer^2] - box[numer^3] + 1) / 2;
+    }
+  }
   int shift;
   while ((shift = lgratio(box[numer], box[numer^1])) <= w && shift > 0) {
     box[numer^1] <<= shift - 1;
     box[numer^3] <<= shift - 1;
     assert(box[numer^0] >= box[numer^1]);
     assert(box[numer^2] >= box[numer^3]);
-    int ival_spans_2 = box[numer^2] / 2 >= box[numer^3];
-    if (ival_spans_2)
-      --shift;
     w -= shift;
     if ((numer&1) == 0)
       operand  |= (((contlog_t)1 << shift) - 1) << w;
-    if (ival_spans_2) {
-      shift = 1;
-      break;
-    }
     box[numer^0] -= box[numer^1];
     box[numer^2] -= box[numer^3];
     numer ^= 3;
@@ -540,8 +540,14 @@ contlog_exp(contlog_t operand)
     return (contlog_t)1 << (maxbits - 1);
 
   unsigned long long ay = 6 * y;
-  unsigned box[] = {2 * x + 2 * y, 2 * x + 4 * y, x + 2 * y, 4 * y};
+  unsigned box[] = {
+    2 * x + 2 * y,
+    2 * x + 4 * y,
+    x + 2 * y,
+    4 * y,
+  };
 
+  int overflow = 0;
   struct contlog_extractor xtract;
   contlog_extractor_init(&xtract, maxbits);
 
@@ -549,8 +555,8 @@ contlog_exp(contlog_t operand)
     /* Update box to shrink range containing the result */
     unsigned long long box0 = box[0];
     unsigned long long box1 = box[1];
-    unsigned long long box2 = box[2];
-    unsigned long long box3 = box[3];
+    unsigned long long box2 = box[2] >> overflow;
+    unsigned long long box3 = box[3] >> overflow;
     box0 = ay * box2 + x * box0;
     box1 = ay * box3 + x * box1;
     ay += 4 * y;
@@ -558,13 +564,20 @@ contlog_exp(contlog_t operand)
     assert(box1 > x * box3);
     box2 = box0 - x * box2;
     box3 = box1 - x * box3;
-    int overflow = flsll(box0 | box1) - maxbits;
-    if (overflow > 0) {
-      int up = xtract.numer == 0 || xtract.numer == 3;
-      box0 = ((box0 - up) >> overflow) + up;
-      box1 = ((box1 - !up) >> overflow) + !up;
-      box2 = ((box2 - !up) >> overflow) + !up;
-      box3 = ((box3 - up) >> overflow) + up;
+    overflow = flsll(box0 | box1) - maxbits;
+    if (overflow <= 0)
+      overflow = 0;
+    else {
+      box0 = (box0 + (1ULL << (overflow - 1))) >> overflow;
+      box1 = (box1 + (1ULL << (overflow - 1))) >> overflow;
+      int otherflow = flsll(box2 | box3) - maxbits;
+      if (otherflow <= 0)
+	overflow = 0;
+      else {
+	box2 = (box2 + (1ULL << (otherflow - 1))) >> otherflow;
+	box3 = (box3 + (1ULL << (otherflow - 1))) >> otherflow;
+	overflow -= otherflow;
+      }
     }
     box[0] = box0;
     box[1] = box1;
