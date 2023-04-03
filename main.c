@@ -47,6 +47,13 @@ static int usage(const char *cmd)
 
 int main(int argc, char *argv[])
 {
+#if 0
+  unsigned i = 0x40000000;
+  do {
+    (void)contlog_log1p(i);
+    i += 4;
+  } while (i != 0x80000000);
+#endif
   if (argc == 1)
     return usage(argv[0]);
 
@@ -59,6 +66,7 @@ int main(int argc, char *argv[])
   char op = argv[2][0];
 
   if (argc == 3) {
+    contlog_t func_val;
     switch (op) {
     case '+':
       printf("x+1: ");
@@ -67,23 +75,41 @@ int main(int argc, char *argv[])
 
     case '/':
       printf("sqrt(x): ");
-      contlog_t r = contlog_sqrt(a);
-      print_frac(r);
+      func_val = contlog_sqrt(a);
+      print_frac(func_val);
 
       printf("x/sqrt(x): ");
-      print_frac(contlog_div(a, r));
+      print_frac(contlog_div(a, func_val));
+      break;
+
+    case '@':
+      printf("1/hypot(1,x): ");
+      func_val = contlog_recip_hypot1(a);
+      print_frac(func_val);
       break;
 
     case 'l':
       printf("log1p(x): ");
-      contlog_t l = contlog_log1p(a);
-      print_frac(l);
+      func_val = contlog_log1p(a);
+      print_frac(func_val);
       break;
 
     case 'e':
       printf("exp(x): ");
-      contlog_t e = contlog_exp(a);
-      print_frac(e);
+      func_val = contlog_exp(a);
+      print_frac(func_val);
+      break;
+
+    case 'c':
+      printf("cosqrt(x): ");
+      func_val = contlog_cosqrt(a);
+      print_frac(func_val);
+      break;
+
+    case 's':
+      printf("sisqrt(x): ");
+      func_val = contlog_sisqrt(a);
+      print_frac(func_val);
       break;
 
     default:
@@ -129,6 +155,11 @@ int main(int argc, char *argv[])
   case 'H':
     printf("xy/(x+y): ");
     print_frac(contlog_harmsum(a, b));
+    break;
+    
+  case '@':
+    printf("sqrt(x*x+y*y): ");
+    print_frac(contlog_hypot(a, b));
     break;
     
   default:

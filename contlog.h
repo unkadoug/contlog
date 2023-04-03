@@ -21,18 +21,16 @@ sum_overflows(contlog_t a, contlog_t b)
     (b > MAXVAL(contlog_t)-a) : (b < MINVAL(contlog_t)-a);
 }
 
-contlog_t *contlog_fold(contlog_t operand, contlog_t box[], int nDims);
+contlog_t contlog_fold(contlog_t operand, contlog_t quad[]);
 void contlog_load_arg(contlog_t operand, contlog_t frac[]);
 void contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d);
 contlog_t frac_to_contlog(contlog_t n, contlog_t d);
 contlog_t contlog_sqrt(contlog_t operand);
+contlog_t contlog_recip_hypot1(contlog_t operand);
 contlog_t contlog_log1p(contlog_t operand);
 contlog_t contlog_exp(contlog_t operand);
-
-#define CONTLOG_CAST(T, val) ((sizeof(T) > sizeof(val) ?	\
-	((T)(val) << 8*(sizeof(T)-sizeof(val))) :	\
-	(T)((val) >> 8*(sizeof(val)-sizeof(T)))))
-
+contlog_t contlog_cosqrt(contlog_t operand);
+contlog_t contlog_sisqrt(contlog_t operand);
 
 static contlog_t
 contlog_incr(contlog_t operand)
@@ -52,10 +50,8 @@ contlog_add(contlog_t op0, contlog_t op1)
 {
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
-  contlog_t box[] = {frac[0], frac[1], 0, frac[0]};
-  contlog_t *b = box;
-  b = contlog_fold(op0, b, 2);
-  return frac_to_contlog(b[1], b[0]);
+  contlog_t quad[] = {frac[0], frac[1], 0, frac[0]};
+  return (contlog_fold(op0, quad));
 }
 
 static contlog_t
@@ -63,10 +59,8 @@ contlog_sub(contlog_t op0, contlog_t op1)
 {
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
-  contlog_t box[] = {frac[0], -frac[1], 0, frac[0]};
-  contlog_t *b = box;
-  b = contlog_fold(op0, b, 2);
-  return frac_to_contlog(b[1], b[0]);
+  contlog_t quad[] = {frac[0], -frac[1], 0, frac[0]};
+  return (contlog_fold(op0, quad));
 }
 
 static contlog_t
@@ -74,10 +68,8 @@ contlog_mult(contlog_t op0, contlog_t op1)
 {
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
-  contlog_t box[] = {frac[0], 0, 0, frac[1]};
-  contlog_t *b = box;
-  b = contlog_fold(op0, b, 2);
-  return frac_to_contlog(b[1], b[0]);
+  contlog_t quad[] = {frac[0], 0, 0, frac[1]};
+  return (contlog_fold(op0, quad));
 }
 
 static contlog_t
@@ -85,10 +77,8 @@ contlog_div(contlog_t op0, contlog_t op1)
 {
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
-  contlog_t box[] = {frac[1], 0, 0, frac[0]};
-  contlog_t *b = box;
-  b = contlog_fold(op0, b, 2);
-  return frac_to_contlog(b[1], b[0]);
+  contlog_t quad[] = {frac[1], 0, 0, frac[0]};
+  return (contlog_fold(op0, quad));
 }
 
 static contlog_t
@@ -96,10 +86,8 @@ contlog_backdiv(contlog_t op0, contlog_t op1)
 {
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
-  contlog_t box[] = {0, frac[1], frac[0], 0};
-  contlog_t *b = box;
-  b = contlog_fold(op0, b, 2);
-  return frac_to_contlog(b[1], b[0]);
+  contlog_t quad[] = {0, frac[1], frac[0], 0};
+  return (contlog_fold(op0, quad));
 }
 
 static contlog_t
@@ -107,10 +95,8 @@ contlog_atnsum(contlog_t op0, contlog_t op1)
 {
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
-  contlog_t box[] = {frac[0], frac[1], -frac[1], frac[0]};
-  contlog_t *b = box;
-  b = contlog_fold(op0, b, 2);
-  return frac_to_contlog(b[1], b[0]);
+  contlog_t quad[] = {frac[0], frac[1], -frac[1], frac[0]};
+  return (contlog_fold(op0, quad));
 }
 
 static contlog_t
@@ -118,8 +104,21 @@ contlog_harmsum(contlog_t op0, contlog_t op1)
 {
   contlog_t frac[2];
   contlog_load_arg(op1, frac);
-  contlog_t box[] = {frac[1], 0, frac[0], frac[1]};
-  contlog_t *b = box;
-  b = contlog_fold(op0, b, 2);
-  return frac_to_contlog(b[1], b[0]);
+  contlog_t quad[] = {frac[1], 0, frac[0], frac[1]};
+  return (contlog_fold(op0, quad));
+}
+
+static contlog_t
+contlog_hypot(contlog_t op0, contlog_t op1)
+{
+  if (op0 < 0)
+    op0 = -op0;
+  if (op1 < 0)
+    op1 = -op1;
+  if (op0 < op1) {
+    contlog_t tmp = op0;
+    op0 = op1;
+    op1 = tmp;
+  }
+  return (contlog_div(op1, contlog_recip_hypot1(contlog_div(op0, op1))));
 }
