@@ -473,11 +473,12 @@ pack(int n, contlog_t result[], contlog_t sum[])
 {
   contlog_t mask = 0;
   for (int i = 0; i < n; ++i)
-    mask |= sum[2*i] < 0 ? -sum[2*i] : sum[2*i];
-  int overflow = fls(mask) + 1;
-  mask = ((contlog_t)1 << (SGNBIT_POS(contlog_t) + 1 - overflow)) - 1;
+    mask |= sum[2*i] ^ ((sum[2*i] << 1) |
+                       ((sum[2*i+1] >> SGNBIT_POS(contlog_t)) & 1));
+  int overflow = fls(mask);
+  mask = ((contlog_t)1 << 1 << (SGNBIT_POS(contlog_t) - overflow)) - 1;
   for (int i = 0; i < n; ++i)
-    result[i] = (sum[2*i] << (SGNBIT_POS(contlog_t) + 1 - overflow)) |
+    result[i] = (sum[2*i] << 1 << (SGNBIT_POS(contlog_t) - overflow)) |
 	    ((sum[2*i+1] >> overflow) & mask);
   return (overflow);
 }
