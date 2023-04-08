@@ -418,7 +418,7 @@ contlog_encode(struct contlog_encode_state *ces, contlog_t quad[])
       quad[i] += quad[i^1];
       quad[i^1] -= quad[i];
       quad[i] += quad[i^1];
-      if (SGNBIT_POS(contlog_t) != nbits) {
+      if (shift >= 0) {
 	quad[i] -= quad[i^1] >> shift;
 	if (SGNBIT_POS(contlog_t) != nbits + shift + 1)
 	  quad[i^1] /= 2;
