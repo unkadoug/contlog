@@ -38,8 +38,8 @@ static int usage(const char *cmd)
   printf("Usage: '%s x' or '%s x op` or '%s x op y', where:\n"
        "x and y are rationals, expressed as fractions like 3/7 or as hex representations,\n"
        "and\n"
-       "op is from '+', '-', '*', '/', '\\' (backward division), 'H' (harmonic sum), 'T' (arctangent sum).\n"
-       "where unary ops are '+' (increment) and '/' (square root).\n",
+       "op is from '+', '-', '*', '/', 'H' (harmonic sum), 'T' (arctangent sum), '@' (pythagorean sum).\n"
+       "where unary ops are '/' (square root), 'e' (exponential), 'l' (log1p), '@' (1/sqrt(1+x*x)).\n",
 
        cmd, cmd, cmd);
     return 0;
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
   if (argc == 1)
     return usage(argv[0]);
 
-  int a = sscan_frac(argv[1]);
+  contlog_t a = sscan_frac(argv[1]);
   printf("x: ");
   print_frac(a);
   if (argc == 2)
@@ -68,11 +68,6 @@ int main(int argc, char *argv[])
   if (argc == 3) {
     contlog_t func_val;
     switch (op) {
-    case '+':
-      printf("x+1: ");
-      print_frac(contlog_incr(a));
-      break;
-
     case '/':
       printf("sqrt(x): ");
       func_val = contlog_sqrt(a);
@@ -117,7 +112,7 @@ int main(int argc, char *argv[])
     }
     return 0;
   }
-  int b = sscan_frac(argv[3]);
+  contlog_t b = sscan_frac(argv[3]);
   printf("y: ");
   print_frac(b);
   
@@ -140,11 +135,6 @@ int main(int argc, char *argv[])
   case '/':
     printf("x/y: ");
     print_frac(contlog_div(a, b));
-    break;
-    
-  case '\\':
-    printf("x\\y: ");
-    print_frac(contlog_backdiv(a, b));
     break;
     
   case 'T':
