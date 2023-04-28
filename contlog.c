@@ -40,8 +40,22 @@
 static inline int
 lobit(contlog_t operand)
 {
-  unsigned int invpos = 8*sizeof(contlog_t) - (SIGNED(contlog_t) ? 1 : 0);
+  int invpos = 8*sizeof(contlog_t) - (SIGNED(contlog_t) ? 1 : 0);
   return (operand ? ffs(operand) - 1 : invpos);
+}
+
+static void
+contlog_op_to_frac(contlog_t operand, contlog_t frac[], int numer)
+{
+  int w = lobit(operand);
+  while (operand != 0) {
+    numer ^= 1;
+    frac[numer] += frac[numer^1];
+    operand &= operand - 1;
+    int w1 = lobit(operand);
+    frac[numer] <<= w1 - w - 1;
+    w = w1;
+  }
 }
 
 /*
@@ -60,19 +74,9 @@ contlog_decode(contlog_t operand, contlog_t frac[])
   else
     operand ^= operand << 1;
   frac[neg] = 1;
-  frac[!neg] = 0;
-  unsigned int shift;
-  unsigned int numer = neg;
-  unsigned int w = lobit(operand);
-  while (operand != 0) {
-    operand &= operand - 1;
-    numer ^= 1;
-    frac[numer] += frac[numer^1];
-    shift = lobit(operand) - w;
-    w += shift--;
-    frac[numer] <<= shift;
-  }
-  shift = lobit(frac[0] | frac[1]);
+  frac[neg^1] = 0;
+  contlog_op_to_frac(operand, frac, neg);
+  int shift = lobit(frac[0] | frac[1]);
   frac[0] >>= shift;
   frac[1] >>= shift;
   return neg;
@@ -82,19 +86,11 @@ static void
 contlog_to_frac_ubound(contlog_t operand, contlog_t frac[])
 {
   operand ^= (operand << 1) | 1;
-  unsigned int numer = 1;
-  unsigned int invpos = SGNBIT_POS(contlog_t) + (SIGNED(contlog_t) ? 0 : 1);
-  unsigned int w = lobit(operand);
-  frac[numer] = 1 << w;
-  frac[numer^1] = 1;
-  while (w < invpos) {
-    operand &= operand - 1;
-    numer ^= 1;
-    frac[numer] += frac[numer^1];
-    unsigned int shift = lobit(operand) - w;
-    w += shift--;
-    frac[numer] <<= shift;
-  }
+  if (SIGNED(contlog_t))
+	  operand &= ~((contlog_t)1 << (8*sizeof(contlog_t)-1));
+  frac[1] = operand & -operand;
+  frac[0] = 1;
+  contlog_op_to_frac(operand, frac, 1);
 }
 
 void
