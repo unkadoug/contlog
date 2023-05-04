@@ -87,7 +87,7 @@ contlog_to_frac_ubound(contlog_t operand, contlog_t frac[])
 {
   operand ^= (operand << 1) | 1;
   if (SIGNED(contlog_t))
-	  operand &= ~((contlog_t)1 << (8*sizeof(contlog_t)-1));
+    operand &= ~((contlog_t)1 << (8*sizeof(contlog_t)-1));
   frac[1] = operand & -operand;
   frac[0] = 1;
   contlog_op_to_frac(operand, frac, 1);
@@ -290,23 +290,17 @@ dotprod2(contlog_t *sum, int overflow,
     prod1 |= sum[0] << backflow;
     sum[0] >>= overflow;
   }
-  sum[0] += hiprod(x2, y2);
+  sum[0] += hiprod(x2, y2) + add_overflow(prod1, prod2, prod1 + prod2);
   sum[1] = prod1 + prod2;
-  sum[0] += add_overflow(prod1, prod2, sum[1]);
 }
 
 static void
 oversum(contlog_t *sum, int overflow,
 	contlog_t x1, contlog_t x2)
 {
-  int nbits = 8 * sizeof(contlog_t);
-  sum[0] = x1 >> (nbits - 1);
-  if (overflow > 0) {
-    x1 >>= overflow;
-    x1 &= ((contlog_t)1 << (nbits - overflow)) - 1;
-    x1 |= sum[0] << (nbits - overflow);
-  }
-  sum[0] += (x2 >> (nbits - 1)) + add_overflow(x1, x2, x1 + x2);
+  int nbits = 8 * sizeof(contlog_t) - 1;
+  x1 >>= overflow;
+  sum[0] = (x1 >> nbits) + (x2 >> nbits) + add_overflow(x1, x2, x1 + x2);
   sum[1] = x1 + x2;
 }
 
@@ -405,14 +399,16 @@ contlog_encode_bounds(struct contlog_encode_state *ces, contlog_t quad[])
    * or lower and upper bound ratios have been pushed too far apart.
    */
   do {
-    if (quad[lo] < 0 && quad[lo^1] / 2 < -quad[lo])
-      break;
-    /* -1/2 <= result */
     if (quad[lo^2] <= quad[lo^3] / 2) {
+      int shift = nbits;
+      if (-quad[lo] >= 0) {
+        if (-quad[lo] <= quad[lo^1] / 2)
+          shift = min(lgratio(quad[lo^1], -quad[lo]), shift);
+	else
+	  break;
+      }
       /* -1/2 <= result <= 1/2 */
-      int shift = min(lgratio(quad[lo^3], quad[lo^2]), nbits);
-      if (quad[lo] < 0)
-        shift = min(lgratio(quad[lo^1], -quad[lo]), shift);
+      shift = min(lgratio(quad[lo^3], quad[lo^2]), shift);
       quad[lo] <<= shift;
       quad[lo^2] <<= shift;
       arg <<= shift;
@@ -441,9 +437,11 @@ static int
 pack(int n, contlog_t result[], contlog_t sum[])
 {
   contlog_t mask = 0;
-  for (int i = 0; i < n; ++i)
-    mask |= sum[2*i] ^ ((sum[2*i] << 1) |
-			((sum[2*i+1] >> SGNBIT_POS(contlog_t)) & 1));
+  for (int i = 0; i < n; ++i) {
+    contlog_t s = sum[2*i];
+    s ^= (s << 1) | ((sum[2*i+1] >> SGNBIT_POS(contlog_t)) & 1);
+    mask |= s;
+  }
   int overflow = fls(mask);
   mask = ((contlog_t)1 << 1 << (SGNBIT_POS(contlog_t) - overflow)) - 1;
   for (int i = 0; i < n; ++i)
@@ -485,9 +483,7 @@ contlog_arith(contlog_t operand, contlog_t quad[])
     }
     operand <<= 1;
   }
-  int j = 0;		/* posn in quad of coeff of 1 in numerator */
-  if (operand & hibit)
-    j ^= 2;
+  int j = (operand & hibit)? 2 : 0;
   operand ^= operand << 1;
 
   struct contlog_encode_state ces;
@@ -501,13 +497,15 @@ contlog_arith(contlog_t operand, contlog_t quad[])
     int shift = SGNBIT_POS(contlog_t) - (fls(operand) - 1);
     operand <<= shift;
     operand <<= 1;
+    overflow += shift;
 
     /* Update quad to shrink range containing the result */
     contlog_t sum[4];
-    oversum(&sum[0], overflow, quad[j^0] >> shift, quad[j^2]);
-    oversum(&sum[2], overflow, quad[j^1] >> shift, quad[j^3]);
+    oversum(&sum[0], overflow, quad[j^0], quad[j^2]);
+    oversum(&sum[2], overflow, quad[j^1], quad[j^3]);
     overflow = pack(2, &quad[j], sum);
-    (void)contlog_encode_bounds(&ces, quad);
+    if (contlog_encode_bounds(&ces, quad))
+      break;
   }
   if (operand == 0)
     contlog_encode_exact(&ces, &quad[j]);
