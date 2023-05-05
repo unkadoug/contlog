@@ -1,9 +1,10 @@
 #include <stdlib.h>
-
-#include <assert.h>
 #include <string.h>
 #include <stdio.h>
 #include "contlog.h"
+#define SIGNED(T) (-(T)1 < 0)
+#define SGNBIT_POS(T) (8*sizeof(T) - 1)
+#define MINVAL(T) (SIGNED(T) ? (T)1 << SGNBIT_POS(T) : 0)
 
 #define ffs(X) _Generic((X), \
 		char: ffs, \
@@ -28,15 +29,6 @@
 		long long: flsll \
 		)(X)
 
-#define UNS(val) (sizeof(val) == sizeof(long long)?		\
-		(unsigned long long) val :			\
-		sizeof(val) == sizeof(long)?			\
-		(unsigned long) val :				\
-		sizeof(val) == sizeof(int)?			\
-		(unsigned) val:					\
-		sizeof(val) == sizeof(short)?			\
-		  (unsigned short) val: (unsigned char)val)	\
-
 static inline int
 lobit(contlog_t operand)
 {
@@ -45,7 +37,7 @@ lobit(contlog_t operand)
 }
 
 static void
-contlog_op_to_frac(contlog_t operand, contlog_t frac[], int numer)
+contlog_op_to_frac(contlog_t operand, fracpart_t frac[], int numer)
 {
   int w = lobit(operand);
   while (operand != 0) {
@@ -61,8 +53,8 @@ contlog_op_to_frac(contlog_t operand, contlog_t frac[], int numer)
 /*
  * Translate operand into fraction frac[] = {denom, numer}.
  */
-int
-contlog_decode(contlog_t operand, contlog_t frac[])
+static int
+contlog_decode(contlog_t operand, fracpart_t frac[])
 {
   contlog_t hibit = (contlog_t)1 << SGNBIT_POS(contlog_t);
   int neg = 0;
@@ -76,14 +68,14 @@ contlog_decode(contlog_t operand, contlog_t frac[])
   frac[neg] = 1;
   frac[neg^1] = 0;
   contlog_op_to_frac(operand, frac, neg);
-  int shift = lobit(frac[0] | frac[1]);
+  int shift = ffs(frac[0] | frac[1]) - 1;
   frac[0] >>= shift;
   frac[1] >>= shift;
-  return neg;
+  return (neg);
 }
 
 static void
-contlog_to_frac_ubound(contlog_t operand, contlog_t frac[])
+contlog_to_frac_ubound(contlog_t operand, fracpart_t frac[])
 {
   operand ^= (operand << 1) | 1;
   if (SIGNED(contlog_t))
@@ -94,24 +86,24 @@ contlog_to_frac_ubound(contlog_t operand, contlog_t frac[])
 }
 
 void
-contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
+contlog_decode_frac(contlog_t operand, fracpart_t pair[])
 {
   contlog_t hibit = (contlog_t)1 << SGNBIT_POS(contlog_t);
   int neg = (operand & hibit) != 0;
   if (neg)
     operand = -operand;
   int numer = 1;
-  contlog_t frac[2][2] = {{1, 0}, {0, 1}};
+  fracpart_t frac[2][2] = {{1, 0}, {0, 1}};
 
   if (operand == hibit)
     numer = 0;
   else if (operand != 0) {
-    contlog_t bound[2][2];
+    fracpart_t bound[2][2];
     contlog_to_frac_ubound(operand-1, &bound[0][0]);
     contlog_to_frac_ubound(operand, &bound[1][0]);
     
     for (;;) {
-      contlog_t val[2];
+      fracpart_t val[2];
       for (int b = 0; b < 2; ++b) {
 	val[b] = bound[b][numer] / bound[b][numer^1];
 	bound[b][numer] %= bound[b][numer^1];
@@ -169,18 +161,18 @@ contlog_to_frac(contlog_t operand, contlog_t *n, contlog_t *d)
     }
   }
     
-  *n = frac[numer][0];
-  *d = frac[numer][1];
+  pair[0] = frac[numer][0];
+  pair[1] = frac[numer][1];
   
   if (neg)
-    *n = -*n;
-  }
+    pair[0] = -pair[0];
+}
 
 static int
-lgratio(contlog_t n, contlog_t d)
+lgratio(fracpart_t n, fracpart_t d)
 {
   if (d == 0)
-    return 8 * sizeof(contlog_t);
+    return 8 * sizeof(fracpart_t);
 
   int lg = fls(n) - fls(d);
   if (lg >= 0) {
@@ -200,139 +192,9 @@ min(int a, int b)
   return (a < b ? a : b);
 }
 
-contlog_t
-frac_to_contlog(contlog_t n, contlog_t d)
-{
-  int lo = 0;
-  int nbits = 8 * sizeof(contlog_t);
-
-  if (SIGNED(contlog_t)) {
-    if (n >> SGNBIT_POS(contlog_t)) {
-      n = -n;
-      lo ^= 1;
-    }
-    if (d >> SGNBIT_POS(contlog_t)) {
-      d = -d;
-      lo ^= 1;
-    }
-    else if (d == 0)
-      lo = 1;
-    --nbits;
-  }
-
-  contlog_t pair[2];
-  pair[lo] = n;
-  pair[lo^1] = d;
-  contlog_t arg = n >= d;
-  lo ^= !arg;
-  for (;;) {
-    int shift = lgratio(pair[lo], pair[lo^1]);
-    shift = min(shift, nbits);
-    pair[lo^1] <<= shift;
-    nbits -= shift;
-    arg <<= shift;
-    if (nbits == 0)
-      break;
-    pair[lo] -= pair[lo^1];
-    arg = 2 * arg + 2 * lo - 1;
-    --nbits;
-    lo ^= 1;
-  }
-  return (arg);
-}
-
 static contlog_t
-hiprod(contlog_t a, contlog_t b)
+contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
 {
-  const unsigned int halfbits = 4 * sizeof(contlog_t);
-  const contlog_t halfmask = ((contlog_t)1 << halfbits) - 1;
-  contlog_t a_lo = a & halfmask;
-  contlog_t a_hi = a >> halfbits;
-  contlog_t b_lo = b & halfmask;
-  contlog_t b_hi = b >> halfbits;
-  contlog_t hilo = (((a_lo * b_lo) >> halfbits) & halfmask) + a_hi * b_lo;
-  contlog_t lohi = (hilo & halfmask) + a_lo * b_hi;
-  return ((hilo >> halfbits) + (lohi >> halfbits) + a_hi * b_hi);
-}
-
-static int
-add_overflow(contlog_t add1, contlog_t add2, contlog_t sum)
-{
-  return (1 & (((add1 & add2) |
-		(add1 & ~sum) |
-		(add2 & ~sum)) >> SGNBIT_POS(contlog_t)));
-}
-
-static void
-dotprod(contlog_t *sum,
-	contlog_t x1, contlog_t x2,
-	contlog_t y1, contlog_t y2)
-{
-  contlog_t prod1 = x1 * y1;
-  contlog_t prod2 = x2 * y2;
-  sum[0] = hiprod(x1, y1) + hiprod(x2, y2);
-  sum[1] = prod1 + prod2;
-  sum[0] += add_overflow(prod1, prod2, sum[1]);
-}
-
-static void
-dotprod2(contlog_t *sum, int overflow,
-	contlog_t x1, contlog_t x2,
-	contlog_t y1, contlog_t y2)
-{
-  contlog_t prod1 = x1 * y1;
-  contlog_t prod2 = x2 * y2;
-  sum[0] = hiprod(x1, y1);
-  if (overflow > 0) {
-    int backflow = 8 * sizeof(contlog_t) - overflow;
-    prod1 >>= overflow;
-    prod1 &= ((contlog_t)1 << backflow) - 1;
-    prod1 |= sum[0] << backflow;
-    sum[0] >>= overflow;
-  }
-  sum[0] += hiprod(x2, y2) + add_overflow(prod1, prod2, prod1 + prod2);
-  sum[1] = prod1 + prod2;
-}
-
-static void
-oversum(contlog_t *sum, int overflow,
-	contlog_t x1, contlog_t x2)
-{
-  int nbits = 8 * sizeof(contlog_t) - 1;
-  x1 >>= overflow;
-  sum[0] = (x1 >> nbits) + (x2 >> nbits) + add_overflow(x1, x2, x1 + x2);
-  sum[1] = x1 + x2;
-}
-
-struct contlog_encode_state {
-  contlog_t arg;
-  int nbits;
-  int lo;
-};
-
-static void
-contlog_encode_state_init(struct contlog_encode_state *ces, contlog_t quad[])
-{
-  int nbits = 8 * sizeof(contlog_t);
-  if (SIGNED(contlog_t))
-    --nbits;
-  contlog_t mask = 0;
-  for (int i = 0; i < 4; ++i)
-    mask |= quad[i] ^ (quad[i] >> 1);
-  int shift = nbits - fls(mask);
-  for (int i = 0; i < 4; ++i)
-    quad[i] <<= shift;
-  ces->nbits = nbits;
-  ces->lo = 0;
-  ces->arg = 0;
-}
-
-static void
-contlog_encode_exact(struct contlog_encode_state *ces, contlog_t pair[])
-{
-  int nbits = ces->nbits;
-  int lo = ces->lo & 1;
-  contlog_t arg = ces->arg;
   if (-pair[lo] > 0) {
     /* result < 0 */
     int shift = ffs(arg) - 1;
@@ -341,7 +203,7 @@ contlog_encode_exact(struct contlog_encode_state *ces, contlog_t pair[])
     pair[lo] += pair[lo^1];
     if (shift >= 0) {
       pair[lo] -= pair[lo^1] >> shift;
-      if (SGNBIT_POS(contlog_t) != nbits + shift + 1)
+      if (SGNBIT_POS(fracpart_t) != nbits + shift + 1)
 	pair[lo^1] /= 2;
     }
     lo ^= 1;
@@ -362,15 +224,48 @@ contlog_encode_exact(struct contlog_encode_state *ces, contlog_t pair[])
     arg = 2 * (arg - lo) + 1;
     lo ^= 1;
   } while (--nbits != 0);
-  ces->lo = lo;
+  return (arg);
+}
+
+contlog_t
+contlog_encode_frac(fracpart_t pair[])
+{
+  int nbits = 8*sizeof(contlog_t) - (SIGNED(contlog_t) ? 1 : 0);
+
+  if (-pair[1] > 0) {
+    pair[0] = -pair[0];
+    pair[1] = -pair[1];
+  }
+
+  return (contlog_encode_exact(nbits, 0, 0, pair));
+}
+
+struct contlog_encode_state {
+  contlog_t arg;
+  int nbits;
+  int lo;
+};
+
+static void
+contlog_encode_state_init(struct contlog_encode_state *ces, fracpart_t quad[])
+{
+  int nbits = 8 * sizeof(contlog_t);
+  if (SIGNED(contlog_t))
+    --nbits;
+  fracpart_t mask = 0;
+  for (int i = 0; i < 4; ++i)
+    mask |= quad[i] ^ (quad[i] >> 1);
+  int shift = nbits - fls(mask);
+  for (int i = 0; i < 4; ++i)
+    quad[i] <<= shift;
   ces->nbits = nbits;
-  ces->arg = arg;
+  ces->lo = 0;
+  ces->arg = 0;
 }
 
 static int
-contlog_encode_bounds(struct contlog_encode_state *ces, contlog_t quad[])
+contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 {
-  contlog_t hibit = (contlog_t)1 << SGNBIT_POS(contlog_t);
   int nbits = ces->nbits;
   int lo = ces->lo;
   contlog_t arg = ces->arg;
@@ -383,7 +278,7 @@ contlog_encode_bounds(struct contlog_encode_state *ces, contlog_t quad[])
       quad[i] += quad[i^1];
       if (shift >= 0) {
 	quad[i] -= quad[i^1] >> shift;
-	if (SGNBIT_POS(contlog_t) != nbits + shift + 1)
+	if (SGNBIT_POS(fracpart_t) != nbits + shift + 1)
 	  quad[i^1] /= 2;
       }
     }
@@ -434,23 +329,42 @@ contlog_encode_bounds(struct contlog_encode_state *ces, contlog_t quad[])
 }
 
 static int
-pack(int n, contlog_t result[], contlog_t sum[])
+pack(int n, fracpart_t result[], fracpart_t sum[])
 {
-  contlog_t mask = 0;
+  fracpart_t mask = 0;
   for (int i = 0; i < n; ++i) {
-    contlog_t s = sum[2*i];
-    s ^= (s << 1) | ((sum[2*i+1] >> SGNBIT_POS(contlog_t)) & 1);
+    fracpart_t s = sum[2*i];
+    s ^= (s << 1) | ((sum[2*i+1] >> SGNBIT_POS(fracpart_t)) & 1);
     mask |= s;
   }
   int overflow = fls(mask);
-  mask = ((contlog_t)1 << 1 << (SGNBIT_POS(contlog_t) - overflow)) - 1;
+  mask = ((fracpart_t)1 << 1 << (SGNBIT_POS(fracpart_t) - overflow)) - 1;
   for (int i = 0; i < n; ++i)
-    result[i] = (sum[2*i] << 1 << (SGNBIT_POS(contlog_t) - overflow)) |
+    result[i] = (sum[2*i] << 1 << (SGNBIT_POS(fracpart_t) - overflow)) |
 	    ((sum[2*i+1] >> overflow) & mask);
   return (overflow);
 }
+
+static int
+add_overflow(fracpart_t add1, fracpart_t add2, fracpart_t sum)
+{
+  return (1 & (((add1 & add2) |
+		(add1 & ~sum) |
+		(add2 & ~sum)) >> SGNBIT_POS(fracpart_t)));
+}
+
 static void
-debug_print(contlog_t operand, contlog_t quad[], int j)
+oversum(fracpart_t sum[], int overflow,
+	fracpart_t x1, fracpart_t x2)
+{
+  int nbits = 8 * sizeof(fracpart_t) - 1;
+  x1 >>= overflow;
+  sum[0] = (x1 >> nbits) + (x2 >> nbits) + add_overflow(x1, x2, x1 + x2);
+  sum[1] = x1 + x2;
+}
+
+static void
+debug_print(contlog_t operand, fracpart_t quad[], int j)
 {
 #ifdef DEBUG
   int sh = 4*sizeof(contlog_t);
@@ -469,8 +383,8 @@ debug_print(contlog_t operand, contlog_t quad[], int j)
 #endif
 }
 
-contlog_t
-contlog_arith(contlog_t operand, contlog_t quad[])
+static contlog_t
+contlog_arith(contlog_t operand, fracpart_t quad[])
 {
   contlog_t hibit = (contlog_t)1 << SGNBIT_POS(contlog_t);
   if (SIGNED(contlog_t)) {
@@ -500,7 +414,7 @@ contlog_arith(contlog_t operand, contlog_t quad[])
     overflow += shift;
 
     /* Update quad to shrink range containing the result */
-    contlog_t sum[4];
+    fracpart_t sum[4];
     oversum(&sum[0], overflow, quad[j^0], quad[j^2]);
     oversum(&sum[2], overflow, quad[j^1], quad[j^3]);
     overflow = pack(2, &quad[j], sum);
@@ -508,20 +422,162 @@ contlog_arith(contlog_t operand, contlog_t quad[])
       break;
   }
   if (operand == 0)
-    contlog_encode_exact(&ces, &quad[j]);
+    ces.arg = contlog_encode_exact(ces.nbits, ces.lo&1, ces.arg, &quad[j]);
   return (ces.arg);
+}
+
+static void
+contlog_upshift(fracpart_t frac[])
+{
+  int shift = SGNBIT_POS(fracpart_t) - fls(frac[0] | frac[1]);
+  frac[0] <<= shift;
+  frac[1] <<= shift;
+}
+
+contlog_t
+contlog_add(contlog_t op0, contlog_t op1)
+{
+  fracpart_t frac[2];
+  int neg = contlog_decode(op1, frac);
+  contlog_upshift(frac);
+  if (neg)
+    frac[1] = -frac[1];
+  fracpart_t quad[] = {frac[1], frac[0], frac[0], 0};
+  return (contlog_arith(op0, quad));
+}
+
+contlog_t
+contlog_sub(contlog_t op0, contlog_t op1)
+{
+  fracpart_t frac[2];
+  int neg = contlog_decode(op1, frac);
+  contlog_upshift(frac);
+  if (!neg)
+    frac[1] = -frac[1];
+  fracpart_t quad[] = {frac[1], frac[0], frac[0], 0};
+  return (contlog_arith(op0, quad));
+}
+
+contlog_t
+contlog_mult(contlog_t op0, contlog_t op1)
+{
+  fracpart_t frac[2];
+  int neg = contlog_decode(op1, frac);
+  contlog_upshift(frac);
+  fracpart_t quad[] = {0, frac[0], frac[1], 0};
+  contlog_t val = contlog_arith(op0, quad);
+  return (neg ? -val : val);
+}
+
+contlog_t
+contlog_div(contlog_t op0, contlog_t op1)
+{
+  fracpart_t frac[2];
+  int neg = contlog_decode(op1, frac);
+  contlog_upshift(frac);
+  fracpart_t quad[] = {0, frac[1], frac[0], 0};
+  contlog_t val = contlog_arith(op0, quad);
+  return (neg ? -val : val);
+}
+
+contlog_t
+contlog_atnsum(contlog_t op0, contlog_t op1)
+{
+  fracpart_t frac[2];
+  int neg = contlog_decode(op1, frac);
+  contlog_upshift(frac);
+  if (neg)
+    frac[1] = -frac[1];
+  fracpart_t quad[] = {frac[1], frac[0], frac[0], -frac[1]};
+  return (contlog_arith(op0, quad));
+}
+
+contlog_t
+contlog_harmsum(contlog_t op0, contlog_t op1)
+{
+  fracpart_t frac[2];
+  int neg = contlog_decode(op1, frac);
+  contlog_upshift(frac);
+  if (neg)
+    frac[1] = -frac[1];
+  fracpart_t quad[] = {0, frac[1], frac[1], frac[0]};
+  return (contlog_arith(op0, quad));
+}
+
+contlog_t
+contlog_hypot(contlog_t op0, contlog_t op1)
+{
+  if (op0 < 0)
+    op0 = -op0;
+  else if (op0 == 0)
+    return (op1);
+  if (op1 < 0)
+    op1 = -op1;
+  else if (op1 == 0)
+    return (op0);
+  if (op1 > op0) {
+    contlog_t tmp = op0;
+    op0 = op1;
+    op1 = tmp;
+  }
+  return (contlog_div(op1, contlog_recip_hypot1(contlog_div(op0, op1))));
+}
+
+static fracpart_t
+hiprod(fracpart_t a, fracpart_t b)
+{
+  const unsigned int halfbits = 4 * sizeof(fracpart_t);
+  const fracpart_t halfmask = ((fracpart_t)1 << halfbits) - 1;
+  fracpart_t a_lo = a & halfmask;
+  fracpart_t a_hi = a >> halfbits;
+  fracpart_t b_lo = b & halfmask;
+  fracpart_t b_hi = b >> halfbits;
+  fracpart_t hilo = (((a_lo * b_lo) >> halfbits) & halfmask) + a_hi * b_lo;
+  fracpart_t lohi = (hilo & halfmask) + a_lo * b_hi;
+  return ((hilo >> halfbits) + (lohi >> halfbits) + a_hi * b_hi);
+}
+
+static void
+dotprod(fracpart_t sum[],
+	fracpart_t x1, fracpart_t x2,
+	fracpart_t y1, fracpart_t y2)
+{
+  fracpart_t prod1 = x1 * y1;
+  fracpart_t prod2 = x2 * y2;
+  sum[0] = hiprod(x1, y1) + hiprod(x2, y2) +
+	  add_overflow(prod1, prod2, prod1 + prod2);
+  sum[1] = prod1 + prod2;
+}
+
+static void
+dotprod2(fracpart_t sum[], int overflow,
+	fracpart_t x1, fracpart_t x2,
+	fracpart_t y1, fracpart_t y2)
+{
+  fracpart_t prod1 = x1 * y1;
+  fracpart_t prod2 = x2 * y2;
+  sum[0] = hiprod(x1, y1);
+  if (overflow > 0) {
+    int backflow = 8 * sizeof(fracpart_t) - overflow;
+    prod1 >>= overflow;
+    prod1 &= ((fracpart_t)1 << backflow) - 1;
+    prod1 |= sum[0] << backflow;
+    sum[0] >>= overflow;
+  }
+  sum[0] += hiprod(x2, y2) + add_overflow(prod1, prod2, prod1 + prod2);
+  sum[1] = prod1 + prod2;
 }
 
 /* Compute f(x) = sqrt(x) */
 contlog_t
 contlog_sqrt(contlog_t operand)
 {
-  contlog_t frac[2];
+  fracpart_t frac[2];
   if (contlog_decode(operand, frac))
     return (MINVAL(contlog_t));
   int ge_1 = frac[0] <= frac[1];
-  contlog_t numer = frac[ge_1];
-  contlog_t denom = frac[!ge_1];
+  fracpart_t numer = frac[ge_1];
+  fracpart_t denom = frac[!ge_1];
 
   /*
    * Scale the argument down by a power of 4, to the range [1, 4), and the
@@ -530,7 +586,7 @@ contlog_sqrt(contlog_t operand)
    */
   int shift = lgratio(numer, denom) / 2;
   denom <<= 2 * shift;
-  contlog_t quad[] = {2*denom, numer+denom, 1, 1};
+  fracpart_t quad[] = {2*denom, numer+denom, 1, 1};
   struct contlog_encode_state ces;
   contlog_encode_state_init(&ces, quad);
   ces.nbits -= shift;
@@ -539,7 +595,7 @@ contlog_sqrt(contlog_t operand)
   int j = 0;
   for (;;) {
     /* Update quad to shrink range containing the result */
-    contlog_t sum[4];
+    fracpart_t sum[4];
     j ^= 2;
     dotprod2(&sum[0], overflow,
 	     quad[j^0], quad[j^2], numer-denom, 2);
@@ -568,19 +624,19 @@ contlog_recip_hypot1(contlog_t operand)
     if (operand < 0)
       return (-(operand >> 1));
   }
-  contlog_t frac[2];
+  fracpart_t frac[2];
   (void)contlog_decode(operand, frac);
   int proper = frac[1] <= frac[0];
-  contlog_t numer = frac[!proper];
-  contlog_t denom = frac[proper];
-  contlog_t quad[] = {0, 1, denom, numer};
+  fracpart_t numer = frac[!proper];
+  fracpart_t denom = frac[proper];
+  fracpart_t quad[] = {0, 1, denom, numer};
   struct contlog_encode_state ces;
   contlog_encode_state_init(&ces, quad);
   int overflow = 0;
   int j = 0;
   do {
     /* Update quad to shrink range containing the result */
-    contlog_t sum[4];
+    fracpart_t sum[4];
     dotprod2(&sum[0], overflow,
 	     quad[j^0], quad[j^2], denom*denom, 2*numer);
     dotprod2(&sum[2], overflow,
@@ -594,17 +650,17 @@ contlog_recip_hypot1(contlog_t operand)
 }
 
 static contlog_t
-contlog_log1p_frac(contlog_t numer, contlog_t denom)
+contlog_log1p_frac(fracpart_t numer, fracpart_t denom)
 {
-  contlog_t n_11234 = numer;
-  contlog_t n_12345 = numer;
-  contlog_t d_13579 = denom;
-  contlog_t quad[] = {0, 1, 1, 0};
+  fracpart_t n_11234 = numer;
+  fracpart_t n_12345 = numer;
+  fracpart_t d_13579 = denom;
+  fracpart_t quad[] = {0, 1, 1, 0};
   struct contlog_encode_state ces;
   contlog_encode_state_init(&ces, quad);
   do {
     /* Update quad to shrink range containing the result */
-    contlog_t sum[8];
+    fracpart_t sum[8];
     for (int i = 0; i < 2; ++i) {
       int j = i ^ 2;
       dotprod(&sum[2*i], quad[i], quad[j], n_12345 + 2*d_13579, 2*n_11234);
@@ -621,7 +677,7 @@ contlog_log1p_frac(contlog_t numer, contlog_t denom)
 contlog_t
 contlog_log1p(contlog_t operand)
 {
-  contlog_t frac[2];
+  fracpart_t frac[2];
   int neg = contlog_decode(operand, frac);
   int numer = frac[1];
   int denom = frac[0];
@@ -653,7 +709,7 @@ contlog_log1p(contlog_t operand)
     (void)contlog_decode(log2, frac);
     frac[1] *= shift;
     contlog_upshift(frac);
-    contlog_t quad[] = {frac[1], frac[0], frac[0], 0};
+    fracpart_t quad[] = {frac[1], frac[0], frac[0], 0};
     arg = contlog_arith(arg, quad);
   }
   if (neg)
@@ -666,19 +722,19 @@ contlog_log1p(contlog_t operand)
 contlog_t
 contlog_exp(contlog_t operand)
 {
-  contlog_t frac[2];
+  fracpart_t frac[2];
   int neg = contlog_decode(operand, frac);
-  if (frac[1] / (SGNBIT_POS(contlog_t) + 1) >= frac[0])
+  fracpart_t numer = frac[1];
+  fracpart_t denom = frac[0];
+  if (numer / (SGNBIT_POS(contlog_t) + 1) >= denom)
     return (neg? 0 : MINVAL(contlog_t));
-  contlog_t numer = frac[1];
-  contlog_t denom = frac[0];
-  contlog_t d_13579 = denom;
-  contlog_t quad[] = {0, 1, 1, 1};
+  fracpart_t d_13579 = denom;
+  fracpart_t quad[] = {0, 1, 1, 1};
   struct contlog_encode_state ces;
   contlog_encode_state_init(&ces, quad);
   do {
     /* Update quad to shrink range containing the result */
-    contlog_t sum[8];
+    fracpart_t sum[8];
     for (int i = 0; i < 2; ++i) {
       int j = i ^ 2;
       dotprod(&sum[2*i], quad[i], quad[j], numer, d_13579);
@@ -698,20 +754,20 @@ contlog_exp(contlog_t operand)
 contlog_t
 contlog_cssqrt(contlog_t operand, int n)
 {
-  contlog_t frac[2];
+  fracpart_t frac[2];
   int neg = contlog_decode(operand, frac);
-  contlog_t numer = neg ? -frac[1] : frac[1];
-  contlog_t denom = frac[0];
-  contlog_t L = 1;
-  contlog_t quad[] = {0, 1, denom, denom};
+  fracpart_t numer = neg ? -frac[1] : frac[1];
+  fracpart_t denom = frac[0];
+  fracpart_t L = 1;
+  fracpart_t quad[] = {0, 1, denom, denom};
   struct contlog_encode_state ces;
   contlog_encode_state_init(&ces, quad);
   int overflow = 0;
   int j = 0;
   do {
     /* Update quad to shrink range containing the result */
-    contlog_t sum[4];
-    contlog_t H = n++;
+    fracpart_t sum[4];
+    fracpart_t H = n++;
     H *= n++;
     dotprod2(&sum[0], overflow, quad[j^0], quad[j^2], L*numer, H);
     dotprod2(&sum[2], overflow, quad[j^1], quad[j^3], L*numer, H);

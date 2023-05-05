@@ -1,5 +1,6 @@
 #include "contlog.h"
 #include <stdio.h>
+#include <string.h>
 
 contlog_t
 sscan_frac(const char *s)
@@ -8,8 +9,8 @@ sscan_frac(const char *s)
   if (strchr(s, '/')) {
     __intmax_t nx, dx;
     sscanf(s, "%jd/%jd", &nx, &dx);
-    contlog_t n = nx, d = dx;
-    operand = frac_to_contlog(n, d);
+    fracpart_t pair[] = {nx, dx};
+    operand = contlog_encode_frac(pair);
   }
   else {
     __intmax_t opx;
@@ -23,14 +24,15 @@ sscan_frac(const char *s)
 void
 print_frac(contlog_t operand)
 {
-  contlog_t n, d;
-  contlog_to_frac(operand, &n, &d);
-  __intmax_t nx = n;
-  __intmax_t dx = d;
+  fracpart_t pair[2];
+  contlog_decode_frac(operand, pair);
+  __intmax_t nx = pair[0];
+  __intmax_t dx = pair[1];
   __intmax_t opx = operand;
   int sh = 4*sizeof(contlog_t);
   opx -= opx >> sh >> sh << sh << sh;
-  printf("%jd/%jd (%0*jx) = %18.12f\n", nx, dx, (int)(2*sizeof(contlog_t)), opx, (double)n/d);
+  printf("%jd/%jd (%0*jx) = %18.12f\n", nx, dx, (int)(2*sizeof(contlog_t)), opx,
+	 (double)pair[0]/pair[1]);
 }
 
 static int usage(const char *cmd)
