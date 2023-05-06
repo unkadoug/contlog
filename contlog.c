@@ -250,15 +250,13 @@ static void
 contlog_encode_state_init(struct contlog_encode_state *ces, fracpart_t quad[])
 {
   int nbits = 8 * sizeof(contlog_t);
-  if (SIGNED(contlog_t))
-    --nbits;
   fracpart_t mask = 0;
   for (int i = 0; i < 4; ++i)
     mask |= quad[i] ^ (quad[i] >> 1);
-  int shift = nbits - fls(mask);
+  int shift = nbits - fls(mask) - 1;
   for (int i = 0; i < 4; ++i)
     quad[i] <<= shift;
-  ces->nbits = nbits;
+  ces->nbits = nbits - (SIGNED(contlog_t) ? 1 : 0);
   ces->lo = 0;
   ces->arg = 0;
 }
