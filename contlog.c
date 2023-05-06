@@ -89,18 +89,18 @@ void
 contlog_decode_frac(contlog_t operand, fracpart_t pair[])
 {
   contlog_t hibit = (contlog_t)1 << SGNBIT_POS(contlog_t);
-  int neg = (operand & hibit) != 0;
+  int neg = SIGNED(contlog_t) && (operand & hibit) != 0;
   if (neg)
     operand = -operand;
   int numer = 1;
   fracpart_t frac[2][2] = {{1, 0}, {0, 1}};
 
-  if (operand == hibit)
+  if (SIGNED(contlog_t) && operand == hibit)
     numer = 0;
   else if (operand != 0) {
-    fracpart_t bound[2][2];
-    contlog_to_frac_ubound(operand-1, &bound[0][0]);
-    contlog_to_frac_ubound(operand, &bound[1][0]);
+    contlog_t bound[2][2];
+    contlog_to_frac_ubound(operand-1, (fracpart_t *)&bound[0][0]);
+    contlog_to_frac_ubound(operand, (fracpart_t *)&bound[1][0]);
     
     for (;;) {
       fracpart_t val[2];
