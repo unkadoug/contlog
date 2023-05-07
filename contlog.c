@@ -80,7 +80,7 @@ contlog_to_frac_ubound(contlog_t operand, fracpart_t frac[])
 {
   operand ^= (operand << 1) | 1;
   if (SIGNED(contlog_t))
-    operand &= ~((contlog_t)1 << (8*sizeof(contlog_t)-1));
+    operand &= ~((contlog_t)1 << SGNBIT_POS(contlog_t));
   frac[0] = 1;
   frac[1] = operand & -operand;
   contlog_op_to_frac(operand, frac, 1);
@@ -93,12 +93,13 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
   int neg = SIGNED(contlog_t) && (operand & hibit) != 0;
   if (neg)
     operand = -operand;
+  int improper = MINVAL(contlog_t) - operand <= operand;
+  if (!improper)
+    operand = MINVAL(contlog_t) - operand;
   int numer = 1;
   fracpart_t frac[2][2] = {{1, 0}, {0, 1}};
 
-  if (SIGNED(contlog_t) && operand == hibit)
-    numer = 0;
-  else if (operand != 0) {
+  if (operand != 0) {
     contlog_t bound[2][2];
     contlog_to_frac_ubound(operand-1, (fracpart_t *)&bound[0][0]);
     contlog_to_frac_ubound(operand, (fracpart_t *)&bound[1][0]);
@@ -162,8 +163,8 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
     }
   }
     
-  pair[0] = frac[numer][0];
-  pair[1] = frac[numer][1];
+  pair[0] = frac[numer][!improper];
+  pair[1] = frac[numer][improper];
   
   if (neg)
     pair[0] = -pair[0];
@@ -173,7 +174,7 @@ static int
 lgratio(fracpart_t n, fracpart_t d)
 {
   if (d == 0)
-    return (8 * sizeof(fracpart_t));
+    return (8 * sizeof(contlog_t));
 
   int lg = fls(n) - fls(d);
   if (lg >= 0) {
@@ -209,9 +210,10 @@ contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
     }
     lo ^= 1;
   }
-  if (pair[lo] > pair[lo^1]) {
-    /* result > 1 */
-    arg = 2 * (arg - lo) + 1;
+  if (pair[lo] >= pair[lo^1]) {
+    /* result >= 1 */
+    if (SIGNED(contlog_t) || pair[lo^1] != 0)
+      arg = 2 * (arg - lo) + 1;
     lo ^= 1;
   }
 
@@ -282,9 +284,10 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
     }
     lo ^= 3;
   }
-  if (quad[lo] > quad[lo^1]) {
-    /* result > 1 */
-    arg = 2 * (arg - (lo&1)) + 1;
+  if (quad[lo] >= quad[lo^1]) {
+    /* result >= 1 */
+    if (SIGNED(contlog_t) || quad[lo^1] != 0)
+      arg = 2 * (arg - (lo&1)) + 1;
     lo ^= 3;
   }
 
@@ -355,7 +358,7 @@ static void
 oversum(fracpart_t sum[], int overflow,
 	fracpart_t x1, fracpart_t x2)
 {
-  int nbits = 8 * sizeof(fracpart_t) - 1;
+  int nbits = SGNBIT_POS(fracpart_t);
   x1 >>= overflow;
   sum[0] = (x1 >> nbits) + (x2 >> nbits) + add_overflow(x1, x2, x1 + x2);
   sum[1] = x1 + x2;
