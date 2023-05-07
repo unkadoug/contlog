@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "contlog.h"
 #define SIGNED(T) (-(T)1 < 0)
+#define MAXBITS(T) (8*sizeof(T)-(SIGNED(T)?1:0))
 #define SGNBIT_POS(T) (8*sizeof(T) - 1)
 #define MINVAL(T) (SIGNED(T) ? (T)1 << SGNBIT_POS(T) : 0)
 
@@ -32,7 +33,7 @@
 static inline int
 lobit(contlog_t operand)
 {
-  int invpos = 8*sizeof(contlog_t) - (SIGNED(contlog_t) ? 1 : 0);
+  int invpos = MAXBITS(contlog_t);
   return (operand ? ffs(operand) - 1 : invpos);
 }
 
@@ -203,7 +204,7 @@ contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
     pair[lo] += pair[lo^1];
     if (shift >= 0) {
       pair[lo] -= pair[lo^1] >> shift;
-      if (SGNBIT_POS(fracpart_t) != nbits + shift + 1)
+      if (MAXBITS(contlog_t) != nbits + shift + 1)
 	pair[lo^1] /= 2;
     }
     lo ^= 1;
@@ -230,14 +231,13 @@ contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
 contlog_t
 contlog_encode_frac(fracpart_t pair[])
 {
-  int nbits = 8*sizeof(contlog_t) - (SIGNED(contlog_t) ? 1 : 0);
 
   if (-pair[1] > 0) {
     pair[0] = -pair[0];
     pair[1] = -pair[1];
   }
 
-  return (contlog_encode_exact(nbits, 0, 0, pair));
+  return (contlog_encode_exact(MAXBITS(contlog_t), 0, 0, pair));
 }
 
 struct contlog_encode_state {
@@ -256,7 +256,7 @@ contlog_encode_state_init(struct contlog_encode_state *ces, fracpart_t quad[])
   int shift = nbits - fls(mask) - 1;
   for (int i = 0; i < 4; ++i)
     quad[i] <<= shift;
-  ces->nbits = nbits - (SIGNED(contlog_t) ? 1 : 0);
+  ces->nbits = MAXBITS(contlog_t);
   ces->lo = 0;
   ces->arg = 0;
 }
@@ -276,7 +276,7 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
       quad[i] += quad[i^1];
       if (shift >= 0) {
 	quad[i] -= quad[i^1] >> shift;
-	if (SGNBIT_POS(fracpart_t) != nbits + shift + 1)
+	if (MAXBITS(contlog_t) != nbits + shift + 1)
 	  quad[i^1] /= 2;
       }
     }
@@ -416,10 +416,12 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
     oversum(&sum[0], overflow, quad[j^0], quad[j^2]);
     oversum(&sum[2], overflow, quad[j^1], quad[j^3]);
     overflow = pack(2, &quad[j], sum);
+    debug_print(operand, quad, j);
     if (contlog_encode_bounds(&ces, quad))
       break;
   }
   if (operand == 0)
+    debug_print(operand, quad, j);
     ces.arg = contlog_encode_exact(ces.nbits, ces.lo&1, ces.arg, &quad[j]);
   return (ces.arg);
 }
