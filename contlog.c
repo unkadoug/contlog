@@ -96,7 +96,7 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
   int improper = MINVAL(contlog_t) - operand <= operand;
   if (!improper)
     operand = MINVAL(contlog_t) - operand;
-  int numer = 1;
+  int lo = 1;
   fracpart_t frac[2][2] = {{1, 0}, {0, 1}};
 
   if (operand != 0) {
@@ -107,64 +107,64 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
     for (;;) {
       fracpart_t val[2];
       for (int b = 0; b < 2; ++b) {
-	val[b] = bound[b][numer] / bound[b][numer^1];
-	bound[b][numer] %= bound[b][numer^1];
+	val[b] = bound[b][lo] / bound[b][lo^1];
+	bound[b][lo] %= bound[b][lo^1];
       }
 
-      if (0 == operand % 2 && bound[numer^1][numer] == 0)
+      if (0 == operand % 2 && bound[lo^1][lo] == 0)
 	/* The lower bound of the closed interval is found.  Make
 	   sure the val fields are different to escape the loop.
 	 */
-	--val[numer^1];
-      switch (val[numer] - val[numer^1]) {
+	--val[lo^1];
+      switch (val[lo] - val[lo^1]) {
       default:
-	val[numer] = val[numer^1] + 1;
+	val[lo] = val[lo^1] + 1;
 	break;
       case 0:
-	if (bound[numer^1][numer] != 0)
+	if (bound[lo^1][lo] != 0)
 	  break;
 	/* The lower bound of the open interval is unavailable, so
 	 * add a small extra cf term without passing the upper bound.
 	 */
 	for (int b = 0; b < 2; ++b)
-	  frac[numer][b] += val[numer] * frac[numer^1][b];
-	numer ^= 1;
-	val[numer^1] = bound[numer^1][numer] / bound[numer^1][numer^1];
-	val[numer] = val[numer^1] + 1;
+	  frac[lo][b] += val[lo] * frac[lo^1][b];
+	lo ^= 1;
+	val[lo^1] = bound[lo^1][lo] / bound[lo^1][lo^1];
+	val[lo] = val[lo^1] + 1;
 	break;
       case 1:
-	if (bound[numer][numer] != 0 ||
+	if (bound[lo][lo] != 0 ||
 	    0 == operand % 2)
 	  break;
 	/* The upper bound of the open interval is unavailable, so
 	 * add one or two small extra cf terms to the lower bound.
 	 */
 	for (int b = 0; b < 2; ++b)
-	  frac[numer][b] += val[numer^1] * frac[numer^1][b];
-	numer ^= 1;
-	if (bound[numer][numer] >= 2 * bound[numer][numer^1])
-	  val[numer^1] = 1;
+	  frac[lo][b] += val[lo^1] * frac[lo^1][b];
+	lo ^= 1;
+	if (bound[lo][lo] >= 2 * bound[lo][lo^1])
+	  val[lo^1] = 1;
 	else {
 	  for (int b = 0; b < 2; ++b)
-	    frac[numer][b] += frac[numer^1][b];
-	  numer ^= 1;
-	  val[numer^1] = bound[numer^1][numer] / 
-	    (bound[numer^1][numer^1] - bound[numer^1][numer]);
+	    frac[lo][b] += frac[lo^1][b];
+	  lo ^= 1;
+	  val[lo^1] = bound[lo^1][lo] / 
+	    (bound[lo^1][lo^1] - bound[lo^1][lo]);
 	}
-	val[numer] = val[numer^1] + 1;
+	val[lo] = val[lo^1] + 1;
 	break;
       }
 
       for (int b = 0; b < 2; ++b)
-	frac[numer][b] += val[numer] * frac[numer^1][b];
-      if (val[numer^1] < val[numer])
+	frac[lo][b] += val[lo] * frac[lo^1][b];
+      if (val[lo^1] < val[lo])
 	break;
-      numer ^= 1;
+      lo ^= 1;
     }
   }
     
-  pair[0] = frac[numer][!improper];
-  pair[1] = frac[numer][improper];
+  pair[0] = frac[lo][!improper];
+  pair[1] = frac[lo][improper];
   
   if (neg)
     pair[0] = -pair[0];
