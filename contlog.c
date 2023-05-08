@@ -623,9 +623,8 @@ contlog_recip_hypot1(contlog_t operand)
   }
   fracpart_t frac[2];
   (void)contlog_decode(operand, frac);
-  int improper = frac[0] >= frac[1];
-  fracpart_t numer = frac[improper];
-  fracpart_t denom = frac[!improper];
+  fracpart_t numer = frac[0];
+  fracpart_t denom = frac[1];
   fracpart_t quad[] = {0, 1, numer, denom};
   struct contlog_encode_state ces;
   contlog_encode_state_init(&ces, quad);
@@ -641,8 +640,6 @@ contlog_recip_hypot1(contlog_t operand)
     overflow = pack(2, &quad[j], sum);
     j ^= 2;
   } while (!contlog_encode_bounds(&ces, quad));
-  if (!improper)
-    ces.arg = contlog_div(ces.arg, operand);
   return (ces.arg);
 }
 
