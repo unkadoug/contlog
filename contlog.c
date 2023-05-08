@@ -104,43 +104,37 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
     contlog_to_frac_ubound(operand-1, (fracpart_t *)&bound[0][0]);
     contlog_to_frac_ubound(operand, (fracpart_t *)&bound[1][0]);
     
+    fracpart_t val[2];
     for (;;) {
-      fracpart_t val[2];
       for (int b = 0; b < 2; ++b) {
 	val[b] = bound[b][lo] / bound[b][lo^1];
 	bound[b][lo] %= bound[b][lo^1];
       }
 
-      if (0 == operand % 2 && bound[lo^1][lo] == 0)
-	/* The lower bound of the closed interval is found.  Make
-	   sure the val fields are different to escape the loop.
-	 */
-	--val[lo^1];
-      switch (val[lo] - val[lo^1]) {
-      default:
-	val[lo] = val[lo^1] + 1;
+      for (int b = 0; b < 2; ++b)
+	frac[lo][b] += val[lo] * frac[lo^1][b];
+      if (val[0] != val[1] || bound[lo^1][lo] == 0)
 	break;
-      case 0:
-	if (bound[lo^1][lo] != 0)
-	  break;
+      lo ^= 1;
+    }
+    switch (val[lo] - val[lo^1]) {
+    case 0:
 	/* The lower bound of the open interval is unavailable, so
 	 * add a small extra cf term without passing the upper bound.
 	 */
-	for (int b = 0; b < 2; ++b)
-	  frac[lo][b] += val[lo] * frac[lo^1][b];
 	lo ^= 1;
 	val[lo^1] = bound[lo^1][lo] / bound[lo^1][lo^1];
 	val[lo] = val[lo^1] + 1;
+	for (int b = 0; b < 2; ++b)
+	  frac[lo][b] += val[lo^1] * frac[lo^1][b];
 	break;
-      case 1:
+    case 1:
 	if (bound[lo][lo] != 0 ||
 	    0 == operand % 2)
 	  break;
 	/* The upper bound of the open interval is unavailable, so
 	 * add one or two small extra cf terms to the lower bound.
 	 */
-	for (int b = 0; b < 2; ++b)
-	  frac[lo][b] += val[lo^1] * frac[lo^1][b];
 	lo ^= 1;
 	if (bound[lo][lo] >= 2 * bound[lo][lo^1])
 	  val[lo^1] = 1;
@@ -152,14 +146,14 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
 	    (bound[lo^1][lo^1] - bound[lo^1][lo]);
 	}
 	val[lo] = val[lo^1] + 1;
+	for (int b = 0; b < 2; ++b)
+	  frac[lo][b] += val[lo] * frac[lo^1][b];
 	break;
-      }
-
-      for (int b = 0; b < 2; ++b)
-	frac[lo][b] += val[lo] * frac[lo^1][b];
-      if (val[lo^1] < val[lo])
+    default:
+	val[lo] = val[lo^1] + 1;
+	for (int b = 0; b < 2; ++b)
+	  frac[lo][b] += val[lo] * frac[lo^1][b];
 	break;
-      lo ^= 1;
     }
   }
     
