@@ -81,9 +81,9 @@ contlog_to_frac_ubound(contlog_t operand, fracpart_t frac[])
   operand ^= (operand << 1) | 1;
   if (SIGNED(contlog_t))
     operand &= ~((contlog_t)1 << SGNBIT_POS(contlog_t));
-  frac[0] = 1;
-  frac[1] = operand & -operand;
-  contlog_op_to_frac(operand, frac, 1);
+  frac[0] = operand & -operand;
+  frac[1] = 1;
+  contlog_op_to_frac(operand, frac, 0);
 }
 
 void
@@ -106,16 +106,16 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
     
     for (;; lo ^= 3) {
       fracpart_t val[2];
-      val[~lo&1] = bound[lo^2] / bound[lo^3];
-      if (bound[lo^1] != 0 &&
-	  val[~lo&1] == bound[lo] / bound[lo^1]) {
-	bound[lo^2] %= bound[lo^3];
-	bound[lo] %= bound[lo^1];
-	val[lo&1] = val[~lo&1];
+      val[lo&1] = bound[lo^3] / bound[lo^2];
+      if (bound[lo] != 0 &&
+	  val[lo&1] == bound[lo^1] / bound[lo]) {
+	bound[lo^1] %= bound[lo];
+	bound[lo^3] %= bound[lo^2];
+	val[~lo&1] = val[lo&1];
       } else
-        val[lo&1] = val[~lo&1] + 1;
-      frac[lo] += val[lo&1] * frac[lo^2];
-      frac[lo^1] += val[lo&1] * frac[lo^3];
+        val[~lo&1] = val[lo&1] + 1;
+      frac[lo] += val[~lo&1] * frac[lo^2];
+      frac[lo^1] += val[~lo&1] * frac[lo^3];
       if (val[lo&1] != val[~lo&1])
 	break;
     }
