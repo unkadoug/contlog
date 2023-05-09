@@ -94,34 +94,37 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
   if (neg)
     operand = -operand;
   int improper = MINVAL(contlog_t) - operand <= operand;
-  if (!improper)
+  if (improper)
     operand = MINVAL(contlog_t) - operand;
-  int lo = 1;
-  fracpart_t frac[2][2] = {{1, 0}, {0, 1}};
+  int lo = 0;
+  fracpart_t frac[] = {1, 0, 0, 1};
 
   if (operand != 0) {
-    contlog_t bound[2][2];
-    contlog_to_frac_ubound(operand-1, (fracpart_t *)&bound[0][0]);
-    contlog_to_frac_ubound(operand, (fracpart_t *)&bound[1][0]);
+    contlog_t bound[4];
+    contlog_to_frac_ubound(operand-1, (fracpart_t *)&bound[0]);
+    contlog_to_frac_ubound(operand, (fracpart_t *)&bound[2]);
     
-    for (;; lo ^= 1) {
+    for (;; lo ^= 3) {
       fracpart_t val[2];
-      val[lo^1] = bound[lo^1][lo] / bound[lo^1][lo^1];
-      if (bound[lo][lo^1] != 0 &&
-	  val[lo^1] == bound[lo][lo] / bound[lo][lo^1]) {
-	bound[lo^1][lo] %= bound[lo^1][lo^1];
-	bound[lo][lo] %= bound[lo][lo^1];
-	val[lo] = val[lo^1];
+      val[~lo&1] = bound[lo^2] / bound[lo^3];
+      if (bound[lo^1] != 0 &&
+	  val[~lo&1] == bound[lo] / bound[lo^1]) {
+	bound[lo^2] %= bound[lo^3];
+	bound[lo] %= bound[lo^1];
+	val[lo&1] = val[~lo&1];
       } else
-        val[lo] = val[lo^1] + 1;
-      frac[0][lo] += val[lo] * frac[0][lo^1];
-      frac[1][lo] += val[lo] * frac[1][lo^1];
-      if (val[lo] != val[lo^1])
+        val[lo&1] = val[~lo&1] + 1;
+      frac[lo] += val[lo&1] * frac[lo^2];
+      frac[lo^1] += val[lo&1] * frac[lo^3];
+      if (val[lo&1] != val[~lo&1])
 	break;
     }
   }
-  pair[0] = frac[!improper][lo];
-  pair[1] = frac[ improper][lo];
+  lo &= 2;
+  if (improper)
+    lo ^= 1;
+  pair[0] = frac[lo];
+  pair[1] = frac[lo^1];
   if (neg)
     pair[0] = -pair[0];
 }
