@@ -112,7 +112,7 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
       }
 
       for (int b = 0; b < 2; ++b)
-	frac[lo][b] += val[lo] * frac[lo^1][b];
+	frac[b][lo] += val[lo] * frac[b][lo^1];
       if (val[0] != val[1] || bound[lo^1][lo] == 0)
 	break;
       lo ^= 1;
@@ -126,7 +126,7 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
 	val[lo^1] = bound[lo^1][lo] / bound[lo^1][lo^1];
 	val[lo] = val[lo^1] + 1;
 	for (int b = 0; b < 2; ++b)
-	  frac[lo][b] += val[lo^1] * frac[lo^1][b];
+	  frac[b][lo] += val[lo^1] * frac[b][lo^1];
 	break;
     case 1:
 	if (bound[lo][lo] != 0 ||
@@ -140,25 +140,25 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
 	  val[lo^1] = 1;
 	else {
 	  for (int b = 0; b < 2; ++b)
-	    frac[lo][b] += frac[lo^1][b];
+	    frac[b][lo] += frac[b][lo^1];
 	  lo ^= 1;
 	  val[lo^1] = bound[lo^1][lo] / 
 	    (bound[lo^1][lo^1] - bound[lo^1][lo]);
 	}
 	val[lo] = val[lo^1] + 1;
 	for (int b = 0; b < 2; ++b)
-	  frac[lo][b] += val[lo] * frac[lo^1][b];
+	  frac[b][lo] += val[lo] * frac[b][lo^1];
 	break;
     default:
 	val[lo] = val[lo^1] + 1;
 	for (int b = 0; b < 2; ++b)
-	  frac[lo][b] += val[lo] * frac[lo^1][b];
+	  frac[b][lo] += val[lo] * frac[b][lo^1];
 	break;
     }
   }
     
-  pair[0] = frac[lo][!improper];
-  pair[1] = frac[lo][improper];
+  pair[0] = frac[!improper][lo];
+  pair[1] = frac[improper][lo];
   
   if (neg)
     pair[0] = -pair[0];
