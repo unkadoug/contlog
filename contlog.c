@@ -105,18 +105,17 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
     contlog_to_frac_ubound(operand, (fracpart_t *)&bound[2]);
     
     for (;; lo ^= 3) {
-      fracpart_t val[2];
-      val[lo>>1] = bound[lo^3] / bound[lo^2];
-      if (bound[lo] != 0 &&
-	  val[lo>>1] == bound[lo^1] / bound[lo]) {
+      fracpart_t gap = 1;
+      fracpart_t val = bound[lo^3] / bound[lo^2];
+      if (bound[lo] != 0 && val == bound[lo^1] / bound[lo]) {
 	bound[lo^1] %= bound[lo];
 	bound[lo^3] %= bound[lo^2];
-	val[(lo>>1)^1] = val[lo>>1];
-      } else
-        val[(lo>>1)^1] = val[lo>>1] + 1;
-      frac[lo] += val[(lo>>1)^1] * frac[lo^2];
-      frac[lo^1] += val[(lo>>1)^1] * frac[lo^3];
-      if (val[lo>>1] != val[(lo>>1)^1])
+	gap = 0;
+      }
+      val += gap;
+      frac[lo] += val * frac[lo^2];
+      frac[lo^1] += val * frac[lo^3];
+      if (gap != 0)
 	break;
     }
   }
