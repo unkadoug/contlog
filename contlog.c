@@ -104,58 +104,24 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
     contlog_to_frac_ubound(operand-1, (fracpart_t *)&bound[0][0]);
     contlog_to_frac_ubound(operand, (fracpart_t *)&bound[1][0]);
     
-    fracpart_t val[2];
-    for (;;) {
-      for (int b = 0; b < 2; ++b) {
-	val[b] = bound[b][lo] / bound[b][lo^1];
-	bound[b][lo] %= bound[b][lo^1];
-      }
-      for (int b = 0; b < 2; ++b)
-	frac[b][lo] += val[lo] * frac[b][lo^1];
-      if (val[0] != val[1] || bound[lo^1][lo] == 0)
-	break;
-      lo ^= 1;
-    }
-    switch (val[lo] - val[lo^1]) {
-    case 0:
-	/* The lower bound of the open interval is unavailable, so
-	 * add a small extra cf term without passing the upper bound.
-	 */
-	lo ^= 1;
-	val[lo^1] = bound[lo^1][lo] / bound[lo^1][lo^1];
-	for (int b = 0; b < 2; ++b)
-	  frac[b][lo] += val[lo^1] * frac[b][lo^1];
-	break;
-    case 1:
-	if (bound[lo][lo] != 0 || 0 == operand % 2)
-	  break;
-	/* The upper bound of the open interval is unavailable, so
-	 * add one or two small extra cf terms to the lower bound.
-	 */
-	lo ^= 1;
-	if (bound[lo][lo] >= 2 * bound[lo][lo^1])
-	  val[lo^1] = 1;
-	else {
-	  for (int b = 0; b < 2; ++b)
-	    frac[b][lo] += frac[b][lo^1];
-	  lo ^= 1;
-	  val[lo^1] = bound[lo^1][lo] / 
-	    (bound[lo^1][lo^1] - bound[lo^1][lo]);
-	}
-	val[lo] = val[lo^1] + 1;
-	for (int b = 0; b < 2; ++b)
-	  frac[b][lo] += val[lo] * frac[b][lo^1];
-	break;
-    default:
-	val[lo] = val[lo^1] + 1;
-	for (int b = 0; b < 2; ++b)
-	  frac[b][lo] += val[lo] * frac[b][lo^1];
+    for (;; lo ^= 1) {
+      fracpart_t val[2];
+      val[lo^1] = bound[lo^1][lo] / bound[lo^1][lo^1];
+      if (bound[lo][lo^1] != 0 &&
+	  val[lo^1] == bound[lo][lo] / bound[lo][lo^1]) {
+	bound[lo^1][lo] %= bound[lo^1][lo^1];
+	bound[lo][lo] %= bound[lo][lo^1];
+	val[lo] = val[lo^1];
+      } else
+        val[lo] = val[lo^1] + 1;
+      frac[0][lo] += val[lo] * frac[0][lo^1];
+      frac[1][lo] += val[lo] * frac[1][lo^1];
+      if (val[lo] != val[lo^1])
 	break;
     }
   }
   pair[0] = frac[!improper][lo];
   pair[1] = frac[ improper][lo];
-  
   if (neg)
     pair[0] = -pair[0];
 }
