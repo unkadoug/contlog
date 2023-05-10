@@ -493,11 +493,6 @@ contlog_hypot(contlog_t op0, contlog_t op1)
     op1 = -op1;
   else if (op1 == 0)
     return (op0);
-  if (op1 > op0) {
-    contlog_t tmp = op0;
-    op0 = op1;
-    op1 = tmp;
-  }
   return (contlog_div(op0, contlog_recip_hypot1(contlog_div(op0, op1))));
 }
 
@@ -615,10 +610,15 @@ contlog_recip_hypot1(contlog_t operand)
     /* Update quad to shrink range containing the result */
     fracpart_t sum[4];
     dotprod2(&sum[0], overflow,
-	     quad[j^0], quad[j^2], numer*numer, 2*denom);
+	     quad[j^0], quad[j^2], numer, 0);
     dotprod2(&sum[2], overflow,
-	     quad[j^1], quad[j^3], numer*numer, 2*denom);
+	     quad[j^1], quad[j^3], numer, 0);
     overflow = pack(2, &quad[j], sum);
+    dotprod2(&sum[0], overflow,
+	     quad[j^0], quad[j^2], numer, 2*denom);
+    dotprod2(&sum[2], overflow,
+	     quad[j^1], quad[j^3], numer, 2*denom);
+    overflow += pack(2, &quad[j], sum);
     j ^= 2;
   } while (!contlog_encode_bounds(&ces, quad));
   return (ces.arg);
