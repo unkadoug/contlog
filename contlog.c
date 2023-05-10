@@ -614,9 +614,9 @@ contlog_recip_hypot1(contlog_t operand)
     dotprod2(&sum[2], overflow,
 	     quad[j^1], quad[j^3], numer, 0);
     overflow = pack(2, &quad[j], sum);
-    dotprod2(&sum[0], overflow,
+    dotprod2(&sum[0], 0,
 	     quad[j^0], quad[j^2], numer, 2*denom);
-    dotprod2(&sum[2], overflow,
+    dotprod2(&sum[2], 0,
 	     quad[j^1], quad[j^3], numer, 2*denom);
     overflow += pack(2, &quad[j], sum);
     j ^= 2;
