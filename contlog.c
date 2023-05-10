@@ -498,7 +498,7 @@ contlog_hypot(contlog_t op0, contlog_t op1)
     op0 = op1;
     op1 = tmp;
   }
-  return (contlog_div(op1, contlog_recip_hypot1(contlog_div(op0, op1))));
+  return (contlog_div(op0, contlog_recip_hypot1(contlog_div(op0, op1))));
 }
 
 static fracpart_t
