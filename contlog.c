@@ -100,17 +100,34 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
   fracpart_t frac[] = {1, 0, 0, 1};
 
   if (operand != 0) {
+    /*
+     * Find lower and upper bounds on the range of fractions represented
+     * by 'operand'.  A fraction on a boundary is represented by the even
+     * operand on that boundary.
+     */
     contlog_t bound[4];
     contlog_to_frac_ubound(operand-1, (fracpart_t *)&bound[0]);
     contlog_to_frac_ubound(operand, (fracpart_t *)&bound[2]);
     
     for (;; lo ^= 3) {
-      fracpart_t gap = 1;
-      fracpart_t val = bound[lo^3] / bound[lo^2];
-      if (bound[lo] != 0 && val == bound[lo^1] / bound[lo]) {
-	bound[lo^1] %= bound[lo];
+      fracpart_t gap, val;
+      if (bound[lo^2] != 0) {
+	val = bound[lo^3] / bound[lo^2];
 	bound[lo^3] %= bound[lo^2];
-	gap = 0;
+      } else
+	val = 1;		/* don't let odd operand get range boundary */
+      if (bound[lo] != 0) {
+	gap = bound[lo^1] / bound[lo] - val;
+	bound[lo^1] %= bound[lo];
+	if (bound[lo^1] == 0 && operand % 2 != 0)
+	  --gap;		/* don't let odd operand get range boundary */
+	if (gap != 0)
+          gap = 1;
+      } else if (operand % 2 != 0)
+	gap = 1;
+      else {
+	lo ^= 3;		/* let even operand get range boundary */
+	break;
       }
       val += gap;
       frac[lo] += val * frac[lo^2];
@@ -118,8 +135,8 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
       if (gap != 0)
 	break;
     }
+    lo &= 2;
   }
-  lo &= 2;
   if (improper)
     lo ^= 1;
   pair[0] = frac[lo];
