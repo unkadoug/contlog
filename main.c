@@ -50,11 +50,20 @@ static int usage(const char *cmd)
 int main(int argc, char *argv[])
 {
 #if 0
-  unsigned i = 0x40000000;
+  fracpart_t pair[2];
+  double last = 0.;
+  unsigned i = 0x10000000;
   do {
-    (void)contlog_log1p(i);
-    i += 4;
-  } while (i != 0x80000000);
+    contlog_decode_frac(i, pair);
+    double next = (double)pair[0]/pair[1];
+    if (next <= last)
+	    printf("i: %u, %g, %g\n", i, last, next);
+    unsigned j = contlog_encode_frac(pair);
+    if (i != j)
+	    printf("i: %u, j: %u\n", i, j);
+    last = next;
+    i += 1;
+  } while (i != 0xf0000000);
 #endif
   if (argc == 1)
     return usage(argv[0]);
