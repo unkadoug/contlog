@@ -185,8 +185,8 @@ contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
     }
     lo ^= 1;
   }
-  if (pair[lo] >= pair[lo^1]) {
-    /* result >= 1 */
+  if (pair[lo] > pair[lo^1]) {
+    /* result > 1 */
     if (SIGNED(contlog_t) || pair[lo^1] != 0)
       arg = 2 * (arg - lo) + 1;
     lo ^= 1;
@@ -259,8 +259,8 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
     }
     lo ^= 3;
   }
-  if (quad[lo] >= quad[lo^1]) {
-    /* result >= 1 */
+  if (quad[lo] > quad[lo^1]) {
+    /* result > 1 */
     if (SIGNED(contlog_t) || quad[lo^1] != 0)
       arg = 2 * (arg - (lo&1)) + 1;
     lo ^= 3;
