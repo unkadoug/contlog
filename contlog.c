@@ -38,8 +38,9 @@ lobit(contlog_t operand)
 }
 
 static void
-contlog_op_to_frac(contlog_t operand, fracpart_t frac[], int lo)
+contlog_op_to_frac(contlog_t operand, fracpart_t frac[])
 {
+  int lo = 0;
   int w = lobit(operand);
   while (operand != 0) {
     lo ^= 1;
@@ -68,9 +69,10 @@ contlog_decode(contlog_t operand, fracpart_t frac[], int upscale)
   }
   else
     operand ^= operand << 1;
-  frac[neg] = 0;
-  frac[!neg] = 1;
-  contlog_op_to_frac(operand, frac, !neg);
+  fracpart_t pair[] = {!neg, neg};
+  contlog_op_to_frac(operand, pair);
+  frac[0] = pair[!neg];
+  frac[1] = pair[neg];
   fracpart_t mask = frac[0] | frac[1];
   if (upscale) {
     int shift = SGNBIT_POS(fracpart_t) - fls(mask);
@@ -96,7 +98,7 @@ contlog_to_frac_ubound(contlog_t operand, fracpart_t frac[])
     operand &= ~((contlog_t)1 << SGNBIT_POS(contlog_t));
   frac[0] = operand & -operand;
   frac[1] = 1;
-  contlog_op_to_frac(operand, frac, 0);
+  contlog_op_to_frac(operand, frac);
 }
 
 /*
