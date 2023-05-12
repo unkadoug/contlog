@@ -112,52 +112,50 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
 {
   contlog_t hibit = (contlog_t)1 << SGNBIT_POS(contlog_t);
   int neg = SIGNED(contlog_t) && (operand & hibit) != 0;
+  int improper = ((operand ^ (SIGNED(contlog_t) ? operand << 1 : 0)) & hibit) != 0;
   if (neg)
     operand = -operand;
-  int improper = MINVAL(contlog_t) - operand <= operand;
   if (improper)
     operand = MINVAL(contlog_t) - operand;
-  int lo = 0;
-  fracpart_t frac[] = {1, 0, 0, 1};
 
-  if (operand != 0) {
-    /*
-     * Find lower and upper bounds on the range of fractions represented
-     * by 'operand'.  A fraction on a boundary is represented by the even
-     * operand on that boundary.
-     */
-    contlog_t bound[4];
-    contlog_to_frac_ubound(operand-1, (fracpart_t *)&bound[0]);
-    contlog_to_frac_ubound(operand, (fracpart_t *)&bound[2]);
-    
-    for (;; lo ^= 3) {
-      fracpart_t gap, val;
-      if (bound[lo^2] != 0) {
+  /*
+   * Find lower and upper bounds on the range of fractions represented
+   * by 'operand'.  A fraction on a boundary is represented by the even
+   * operand on that boundary.
+   */
+  contlog_t bound[4];
+  contlog_to_frac_ubound(operand-1, (fracpart_t *)&bound[0]);
+  contlog_to_frac_ubound(operand, (fracpart_t *)&bound[2]);
+
+  int lo;
+  fracpart_t frac[] = {1, 0, 0, 1};
+  for (lo = 0;; lo ^= 3) {
+    fracpart_t gap, val;
+    if (bound[lo^2] != 0) {
 	val = bound[lo^3] / bound[lo^2];
 	bound[lo^3] %= bound[lo^2];
-      } else
+    } else
 	val = 1;		/* don't let odd operand get range boundary */
-      if (bound[lo] != 0) {
+    if (bound[lo] != 0) {
 	gap = bound[lo^1] / bound[lo] - val;
 	bound[lo^1] %= bound[lo];
 	if (bound[lo^1] == 0 && operand % 2 != 0)
 	  --gap;		/* don't let odd operand get range boundary */
 	if (gap != 0)
-          gap = 1;
-      } else if (operand % 2 != 0)
 	gap = 1;
-      else {
+    } else if (operand % 2 != 0)
+	gap = 1;
+    else {
 	lo ^= 3;		/* let even operand get range boundary */
 	break;
-      }
-      val += gap;
-      frac[lo] += val * frac[lo^2];
-      frac[lo^1] += val * frac[lo^3];
-      if (gap != 0)
-	break;
     }
-    lo &= 2;
+    val += gap;
+    frac[lo] += val * frac[lo^2];
+    frac[lo^1] += val * frac[lo^3];
+    if (gap != 0)
+	break;
   }
+  lo &= 2;
   if (improper)
     lo ^= 1;
   pair[0] = frac[lo];
