@@ -268,6 +268,11 @@ contlog_encode_state_init(struct contlog_encode_state *ces, fracpart_t quad[])
      ces->arg = 0;
 }
 
+/*
+ * Extract as many bits as possible from quad and pack them into ces.  Return
+ * true when enough bits are packed.  Return false when the lower and upper
+ * bounds in quad are too far apart to extract more bits.
+ */
 static int
 contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 {
