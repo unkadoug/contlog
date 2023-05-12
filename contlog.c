@@ -7,28 +7,28 @@
 #define SGNBIT_POS(T) (8*sizeof(T) - 1)
 #define MINVAL(T) (SIGNED(T) ? (T)1 << SGNBIT_POS(T) : 0)
 
-#define ffs(X) _Generic((X), \
-		char: ffs, \
-		unsigned char: ffs, \
-		short: ffs, \
-		unsigned short: ffs, \
-		int: ffs, \
-		unsigned: ffs, \
-		long: ffsl,	\
-		unsigned long: ffsl,	\
-		long long: ffsll \
-		)(X)
-#define fls(X) _Generic((X), \
-		char: fls, \
-		unsigned char: fls, \
-		short: fls, \
-		unsigned short: fls, \
-		int: fls, \
-		unsigned: fls, \
-		long: flsl, \
-		unsigned long: flsl, \
-		long long: flsll \
-		)(X)
+#define ffs(X) _Generic((X),			\
+			char: ffs,		\
+			unsigned char: ffs,	\
+			short: ffs,		\
+			unsigned short: ffs,	\
+			int: ffs,		\
+			unsigned: ffs,		\
+			long: ffsl,		\
+			unsigned long: ffsl,	\
+			long long: ffsll	\
+	  )(X)
+#define fls(X) _Generic((X),			\
+			char: fls,		\
+			unsigned char: fls,	\
+			short: fls,		\
+			unsigned short: fls,	\
+			int: fls,		\
+			unsigned: fls,		\
+			long: flsl,		\
+			unsigned long: flsl,	\
+			long long: flsll	\
+	  )(X)
 
 static inline int
 lobit(contlog_t operand)
@@ -112,7 +112,7 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
 {
      contlog_t hibit = (contlog_t)1 << SGNBIT_POS(contlog_t);
      int neg = SIGNED(contlog_t) && (operand & hibit) != 0;
-     int improper = ((operand ^ (SIGNED(contlog_t) ? operand << 1 : 0)) & hibit) != 0;
+     int improper = ((operand^(SIGNED(contlog_t)? operand<<1:0)) & hibit) != 0;
      if (neg)
 	  operand = -operand;
      if (improper)
@@ -244,10 +244,13 @@ contlog_encode_frac(fracpart_t pair[])
      return (contlog_encode_exact(MAXBITS(contlog_t), 0, 0, pair));
 }
 
+/*
+ * Represent the partially-constructed result of a computation.
+ */
 struct contlog_encode_state {
-     contlog_t arg;
-     int nbits;
-     int lo;
+     contlog_t arg;		/* bits so far */
+     int nbits;			/* # of bits to go */
+     int lo;			/* position of numerator of lower bound */
 };
 
 static void
@@ -399,6 +402,9 @@ debug_print(contlog_t operand, fracpart_t quad[], int j)
 #endif
 }
 
+/*
+ * Given a quad (a, b, c, d) and an operand x, compute (a+cx)/(b+dx).
+ */
 static contlog_t
 contlog_arith(contlog_t operand, fracpart_t quad[])
 {
@@ -447,6 +453,7 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
      return (ces.arg);
 }
 
+/* Compute x+y */
 contlog_t
 contlog_add(contlog_t op0, contlog_t op1)
 {
@@ -458,6 +465,7 @@ contlog_add(contlog_t op0, contlog_t op1)
      return (contlog_arith(op0, quad));
 }
 
+/* Compute x-y */
 contlog_t
 contlog_sub(contlog_t op0, contlog_t op1)
 {
@@ -469,6 +477,7 @@ contlog_sub(contlog_t op0, contlog_t op1)
      return (contlog_arith(op0, quad));
 }
 
+/* Compute x*y */
 contlog_t
 contlog_mult(contlog_t op0, contlog_t op1)
 {
@@ -479,6 +488,7 @@ contlog_mult(contlog_t op0, contlog_t op1)
      return (neg ? -val : val);
 }
 
+/* Compute x/y */
 contlog_t
 contlog_div(contlog_t op0, contlog_t op1)
 {
@@ -489,6 +499,7 @@ contlog_div(contlog_t op0, contlog_t op1)
      return (neg ? -val : val);
 }
 
+/* Compute (x+y)/(1-x*y) */
 contlog_t
 contlog_atnsum(contlog_t op0, contlog_t op1)
 {
@@ -500,6 +511,7 @@ contlog_atnsum(contlog_t op0, contlog_t op1)
      return (contlog_arith(op0, quad));
 }
 
+/* Compute (x*y)/(x+y) */
 contlog_t
 contlog_harmsum(contlog_t op0, contlog_t op1)
 {
@@ -529,6 +541,9 @@ hiprod(fracpart_t a, fracpart_t b)
      return ((hilo >> halfbits) + (lohi >> halfbits) + a_hi * b_hi);
 }
 
+/*
+ * Compute x1*y1 + x2*y2, capturing numerical overflow.
+ */
 static void
 dotprod(fracpart_t sum[],
 	fracpart_t x1, fracpart_t x2,
@@ -541,6 +556,9 @@ dotprod(fracpart_t sum[],
      sum[1] = prod1 + prod2;
 }
 
+/*
+ * Compute (x1*y1 >> overflow) + x2*y2, capturing numerical overflow.
+ */
 static void
 dotprod2(fracpart_t sum[], int overflow,
 	fracpart_t x1, fracpart_t x2,
@@ -643,6 +661,7 @@ contlog_recip_hypot1(contlog_t operand)
      return (ces.arg);
 }
 
+/* Compute sqrt(x*x + y*y) */
 contlog_t
 contlog_hypot(contlog_t op0, contlog_t op1)
 {
@@ -657,6 +676,7 @@ contlog_hypot(contlog_t op0, contlog_t op1)
      return (contlog_div(op0, contlog_recip_hypot1(contlog_div(op0, op1))));
 }
 
+/* Compute log(1 + numer/denom) */
 static contlog_t
 contlog_log1p_frac(fracpart_t numer, fracpart_t denom)
 {
@@ -683,6 +703,7 @@ contlog_log1p_frac(fracpart_t numer, fracpart_t denom)
      return (ces.arg);
 }
 
+/* Compute log(1 + x) */
 contlog_t
 contlog_log1p(contlog_t operand)
 {
@@ -724,8 +745,7 @@ contlog_log1p(contlog_t operand)
      return (arg);
 }
 
-/* Compute e**x.
- */
+/* Compute e**x. */
 contlog_t
 contlog_exp(contlog_t operand)
 {
@@ -756,8 +776,7 @@ contlog_exp(contlog_t operand)
      return (ces.arg);
 }
 
-/* Compute cos(sqrt(x)) or sin(sqrt(x))/sqrt(x).
- */
+/* Compute cos(sqrt(x)) or sin(sqrt(x))/sqrt(x). */
 contlog_t
 contlog_cssqrt(contlog_t operand, int n)
 {
@@ -788,16 +807,14 @@ contlog_cssqrt(contlog_t operand, int n)
      return (ces.arg);
 }
 
-/* Compute cos(sqrt(x)).
- */
+/* Compute cos(sqrt(x)). */
 contlog_t
 contlog_cosqrt(contlog_t operand)
 {
      return (contlog_cssqrt(operand, 1));
 }
 
-/* Compute sin(sqrt(x))/sqrt(x).
- */
+/* Compute sin(sqrt(x))/sqrt(x). */
 contlog_t
 contlog_sisqrt(contlog_t operand)
 {
