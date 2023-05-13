@@ -30,25 +30,21 @@
 			long long: flsll	\
 	  )(X)
 
-static inline int
-lobit(contlog_t operand)
-{
-     int invpos = MAXBITS(contlog_t);
-     return (operand ? ffs(operand) - 1 : invpos);
-}
-
 static void
-contlog_op_to_frac(contlog_t operand, fracpart_t frac[])
+contlog_op_to_frac(contlog_t operand, contlog_t xbit, fracpart_t frac[])
 {
+     contlog_t signbit = (contlog_t)SIGNED(contlog_t) << SGNBIT_POS(contlog_t);
+     operand ^= (operand << 1) | xbit;
+     operand &= ~signbit;
+     int lobit = ffs(operand);
      int lo = 0;
-     int w = lobit(operand);
      while (operand != 0) {
 	  lo ^= 1;
 	  frac[lo] += frac[lo^1];
-	  operand &= operand - 1;
-	  int w1 = lobit(operand);
-	  frac[lo] <<= w1 - w - 1;
-	  w = w1;
+	  operand &= operand - 1; /* clear low bit */
+	  int nextbit = operand ? ffs(operand) : (1 + MAXBITS(contlog_t));
+	  frac[lo] <<= nextbit - lobit - 1;
+	  lobit = nextbit;
      }
 }
 
@@ -60,17 +56,10 @@ contlog_op_to_frac(contlog_t operand, fracpart_t frac[])
 static int
 contlog_decode(contlog_t operand, fracpart_t frac[], int upscale)
 {
-     int neg = 0;
-     if (SIGNED(contlog_t)) {
-	  contlog_t hibit = (contlog_t)1 << SGNBIT_POS(contlog_t);
-	  neg = (operand & hibit) != 0;
-	  operand ^= operand << 1;
-	  operand &= ~hibit;
-     }
-     else
-	  operand ^= operand << 1;
+     contlog_t signbit = (contlog_t)SIGNED(contlog_t) << SGNBIT_POS(contlog_t);
+     int neg = (operand & signbit) != 0;
      fracpart_t pair[] = {!neg, neg};
-     contlog_op_to_frac(operand, pair);
+     contlog_op_to_frac(operand, 0, pair);
      frac[0] = pair[!neg];
      frac[1] = pair[neg];
      fracpart_t mask = frac[0] | frac[1];
@@ -93,12 +82,9 @@ contlog_decode(contlog_t operand, fracpart_t frac[], int upscale)
 static void
 contlog_to_frac_ubound(contlog_t operand, fracpart_t frac[])
 {
-     operand ^= (operand << 1) | 1;
-     if (SIGNED(contlog_t))
-	  operand &= ~((contlog_t)1 << SGNBIT_POS(contlog_t));
-     frac[0] = operand & -operand;
+     frac[0] = ~operand & -~operand;
      frac[1] = 1;
-     contlog_op_to_frac(operand, frac);
+     contlog_op_to_frac(operand, 1, frac);
 }
 
 /*
