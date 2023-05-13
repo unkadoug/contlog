@@ -1,7 +1,24 @@
 
-typedef int contlog_t;
-typedef int fracpart_t;
+/* How big should the representation be? */
+#if !defined(CONTLOG_BASE)
+#define CONTLOG_BASE int
+#endif
 
+/* Should the numbers represented include all rationals (0), nonnegative
+ * rationals (1) or unit-interval rationals (2) ?
+ */
+#if !defined(CONTLOG_RANGE)
+#define CONTLOG_RANGE 0
+#endif
+
+#if (CONTLOG_RANGE == 0)
+#define CONTLOG_SIGNED
+#else
+#define CONTLOG_SIGNED unsigned
+#endif
+
+typedef CONTLOG_SIGNED CONTLOG_BASE contlog_t;
+typedef CONTLOG_BASE fracpart_t;
 
 /* use continued logrithms, as described by Gosper,
  * but with logs a, b, c, d, ... represented as bits
