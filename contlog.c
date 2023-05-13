@@ -30,18 +30,24 @@
 			long long: flsll	\
 	  )(X)
 
+
 static void
 contlog_op_to_frac(contlog_t operand, contlog_t xbit, fracpart_t frac[])
 {
-     operand ^= (operand << 1) | xbit;
-     operand &= ~MINVAL;
-     int lobit = ffs(operand);
-     int lo = 0;
-     while (operand != 0) {
-	  lo ^= 1;
+     int lobit, nextbit;
+
+     xbit ^= operand & 1;
+     operand ^= operand >> 1;
+     if (xbit)
+	  lobit = 0;
+     else {
+	  lobit = operand ? ffs(operand) : MAXBITS;
+	  operand &= operand - 1;
+     }
+     for (int lo = 1; lobit < MAXBITS; lo ^= 1, lobit = nextbit) {
 	  frac[lo] += frac[lo^1];
-	  operand &= operand - 1; /* clear low bit */
-	  int nextbit = operand ? ffs(operand) : (1 + MAXBITS);
+	  nextbit = operand ? ffs(operand) : MAXBITS;
+	  operand &= operand - 1;
 	  frac[lo] <<= nextbit - lobit - 1;
 	  lobit = nextbit;
      }
