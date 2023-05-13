@@ -104,8 +104,8 @@ int main(int argc, char *argv[])
 			break;
 
 		case 'e':
-			printf("exp(x): ");
-			func_val = contlog_exp(a);
+			printf("1/exp(x): ");
+			func_val = contlog_expm(a);
 			print_frac(func_val);
 			break;
 

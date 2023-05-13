@@ -734,9 +734,9 @@ contlog_log1p(contlog_t operand)
      return (arg);
 }
 
-/* Compute e**x. */
+/* Compute 1/e**x. */
 contlog_t
-contlog_exp(contlog_t operand)
+contlog_expm(contlog_t operand)
 {
      fracpart_t frac[2];
      int neg = contlog_decode(operand, frac, 0);
@@ -760,7 +760,7 @@ contlog_exp(contlog_t operand)
 	  d_13579 += 2 * denom;
 	  ces.lo ^= 2;
      } while (!contlog_encode_bounds(&ces, quad));
-     if (!neg)
+     if (neg)
 	  ces.arg = MINVAL - ces.arg;
      return (ces.arg);
 }

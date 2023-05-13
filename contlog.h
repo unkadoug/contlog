@@ -39,6 +39,6 @@ contlog_t contlog_sqrt(contlog_t operand);
 contlog_t contlog_recip_hypot1(contlog_t operand);
 contlog_t contlog_hypot(contlog_t op0, contlog_t op1);
 contlog_t contlog_log1p(contlog_t operand);
-contlog_t contlog_exp(contlog_t operand);
+contlog_t contlog_expm(contlog_t operand);
 contlog_t contlog_cosqrt(contlog_t operand);
 contlog_t contlog_sisqrt(contlog_t operand);
