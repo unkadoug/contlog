@@ -49,7 +49,6 @@ contlog_op_to_frac(contlog_t operand, contlog_t xbit, fracpart_t frac[])
 	  nextbit = operand ? ffs(operand) : MAXBITS;
 	  operand &= operand - 1;
 	  frac[lo] <<= nextbit - lobit - 1;
-	  lobit = nextbit;
      }
 }
 
