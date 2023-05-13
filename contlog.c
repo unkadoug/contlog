@@ -95,7 +95,7 @@ void
 contlog_decode_frac(contlog_t operand, fracpart_t pair[])
 {
      contlog_t hibit = (contlog_t)1 << SGNBIT_POS;
-     int neg = operand & MINVAL;
+     int neg = (operand & MINVAL) != 0;
      int improper = (operand & hibit) ^ ((operand << 1) & MINVAL);
      if (neg)
 	  operand = -operand;
