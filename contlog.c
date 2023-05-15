@@ -403,9 +403,9 @@ debug_print(contlog_t operand, fracpart_t quad[], int j)
 static contlog_t
 contlog_arith(contlog_t operand, fracpart_t quad[])
 {
-     contlog_t hibit = (contlog_t)1 << SGNBIT_POS;
+     int j = 0;
 #if (CONTLOG_RANGE <= 0)
-     if (operand & hibit) {
+     if (operand >> SGNBIT_POS) {
 	  for (int i = 0; i < 2; ++i) {
 	       quad[i] -= quad[i^2];
 	       quad[i^2] += quad[i];
@@ -414,41 +414,39 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
      }
      operand <<= 1;
 #endif
-     int j, xbit;
+     int nonzero = operand != 0;
 #if (CONTLOG_RANGE <= 1)
-     j = (operand & hibit)? 2 : 0;
-     xbit = 0;
-     operand ^= operand << 1;
-#else
-     j = 0;
-     xbit = operand & 1;
-     operand ^= operand >> 1;
+     if (operand >> SGNBIT_POS) {
+	  operand = -operand;
+	  j ^= 2;
+     }
+     operand <<= 1;
 #endif
-
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
      int overflow = 0;
-     while (operand != 0 || xbit != 0) {
-	  debug_print(operand, quad, j);
-	  j ^= 2;
-
+     while (nonzero) {
 	  /* Find the leftmost set bit position of operand and shift the bit
 	   * out. */
-	  int shift = SGNBIT_POS - (fls(operand) - 1);
-	  operand <<= 1;
-	  if (xbit) {
-	       xbit = 0;
-	       operand |= 1;
+	  int shift = -1;
+	  if (operand != 0) {
+	       shift = REP_NBITS - fls(operand);
+	       operand <<= shift;
+	       operand = -2 * operand;
 	  }
-	  operand <<= shift;
+	  if (operand == 0) {
+	       nonzero = 0;
+	       if (++shift == REP_NBITS)
+		    break;
+	  }
 	  overflow += shift;
 
 	  /* Update quad to shrink range containing the result */
+	  j ^= 2;
 	  fracpart_t sum[4];
 	  oversum(&sum[0], overflow, quad[j^0], quad[j^2]);
 	  oversum(&sum[2], overflow, quad[j^1], quad[j^3]);
 	  overflow = pack(2, &quad[j], sum);
-	  debug_print(operand, quad, j);
 	  if (contlog_encode_bounds(&ces, quad))
 	       break;
      }
