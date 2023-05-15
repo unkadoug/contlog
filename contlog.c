@@ -91,6 +91,49 @@ contlog_to_frac_ubound(contlog_t operand, fracpart_t frac[])
 }
 
 /*
+ * Given a pair of ratios that bound a range (open or closed), return the ratio
+ * with smallest elements in that range.  Lower bound is bound[0]/bound[1];
+ * upper bound is bound[2]/bound[3].  'frac' is a 4-element array; the result is
+ * stored in its first two elements.
+ */
+static void
+contlog_find_simplest(contlog_t bound[], int open, fracpart_t frac[])
+{
+     frac[0] = frac[3] = 1;
+     frac[1] = frac[2] = 0;
+     int lo;
+     for (lo = 0;; lo ^= 3) {
+	  fracpart_t gap, val;
+	  if (bound[lo^2] != 0) {
+	       val = bound[lo^3] / bound[lo^2];
+	       bound[lo^3] %= bound[lo^2];
+	  } else
+	       val = 1;		/* exclude range boundary */
+	  if (bound[lo] != 0) {
+	       gap = bound[lo^1] / bound[lo] - val;
+	       bound[lo^1] %= bound[lo];
+	       if (bound[lo^1] == 0 && open)
+		    --gap;	/* exclude range boundary */
+	       if (gap != 0)
+		    gap = 1;
+	  } else if (open)
+	       gap = 1;
+	  else {
+	       lo ^= 3;		/* include range boundary */
+	       break;
+	  }
+	  val += gap;
+	  frac[lo] += val * frac[lo^2];
+	  frac[lo^1] += val * frac[lo^3];
+	  if (gap != 0)
+	       break;
+     }
+     lo &= 2;
+     frac[0] = frac[lo];
+     frac[1] = frac[lo^1];
+}
+
+/*
  * Translate operand into fraction frac[] = {numer, denom} that lies within the
  * interval of values represented by operand and has least numer+denom, for
  * presentation, not for calculation.  For even operand, frac may lie on the
@@ -117,39 +160,11 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
      contlog_to_frac_ubound(operand-1, (fracpart_t *)&bound[0]);
      contlog_to_frac_ubound(operand, (fracpart_t *)&bound[2]);
 
-     int lo;
-     fracpart_t frac[] = {1, 0, 0, 1};
-     for (lo = 0;; lo ^= 3) {
-	  fracpart_t gap, val;
-	  if (bound[lo^2] != 0) {
-	       val = bound[lo^3] / bound[lo^2];
-	       bound[lo^3] %= bound[lo^2];
-	  } else
-	       val = 1;		/* don't let odd operand get range boundary */
-	  if (bound[lo] != 0) {
-	       gap = bound[lo^1] / bound[lo] - val;
-	       bound[lo^1] %= bound[lo];
-	       if (bound[lo^1] == 0 && operand % 2 != 0)
-		    --gap;	/* don't let odd operand get range boundary */
-	       if (gap != 0)
-		    gap = 1;
-	  } else if (operand % 2 != 0)
-	       gap = 1;
-	  else {
-	       lo ^= 3;		/* let even operand get range boundary */
-	       break;
-	  }
-	  val += gap;
-	  frac[lo] += val * frac[lo^2];
-	  frac[lo^1] += val * frac[lo^3];
-	  if (gap != 0)
-	       break;
-     }
-     lo &= 2;
-     if (improper)
-	  lo ^= 1;
-     pair[0] = frac[lo];
-     pair[1] = frac[lo^1];
+     int open = (operand % 2 != 0); /* are boundaries excluded? */
+     fracpart_t frac[4];
+     contlog_find_simplest(bound, open, frac);
+     pair[0] = frac[improper];
+     pair[1] = frac[!improper];
      if (neg)
 	  pair[0] = -pair[0];
 }
@@ -435,9 +450,9 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
 	       operand = -2 * operand;
 	  }
 	  if (operand == 0) {
-	       nonzero = 0;
 	       if (++shift == REP_NBITS)
 		    break;
+	       nonzero = 0;
 	  }
 	  overflow += shift;
 
@@ -450,12 +465,10 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
 	  if (contlog_encode_bounds(&ces, quad))
 	       break;
      }
-     if (operand == 0) {
-	  debug_print(operand, quad, j);
-	  ces.arg =
-	       contlog_encode_exact(ces.nbits, ces.lo&1, ces.arg, &quad[j]);
-     }
-     return (ces.arg);
+     if (operand != 0)
+	  return (ces.arg);
+     return(contlog_encode_exact(ces.nbits, ces.lo&1, ces.arg, &quad[j]));
+
 }
 
 /* Compute x+y */
