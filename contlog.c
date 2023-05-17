@@ -102,32 +102,25 @@ contlog_find_simplest(contlog_t bound[], int open, fracpart_t frac[])
      frac[0] = frac[3] = 1;
      frac[1] = frac[2] = 0;
      int lo;
-     for (lo = 0;; lo ^= 3) {
-	  fracpart_t gap, val;
+     fracpart_t gap = 0, val;
+     for (lo = 0; gap == 0 && (bound[lo] != 0 || open); lo ^= 3) {
+	  val = gap = 1;
 	  if (bound[lo^2] != 0) {
 	       val = bound[lo^3] / bound[lo^2];
 	       bound[lo^3] %= bound[lo^2];
-	  } else
-	       val = 1;		/* exclude range boundary */
+	  }
 	  if (bound[lo] != 0) {
 	       gap = bound[lo^1] / bound[lo] - val;
 	       bound[lo^1] %= bound[lo];
 	       if (bound[lo^1] == 0 && open)
 		    --gap;	/* exclude range boundary */
-	       if (gap != 0)
-		    gap = 1;
-	  } else if (open)
-	       gap = 1;
-	  else {
-	       lo ^= 3;		/* include range boundary */
-	       break;
 	  }
-	  val += gap;
+	  if (gap != 0)
+	       ++val;
 	  frac[lo] += val * frac[lo^2];
 	  frac[lo^1] += val * frac[lo^3];
-	  if (gap != 0)
-	       break;
      }
+     lo ^= 3;
      lo &= 2;
      frac[0] = frac[lo];
      frac[1] = frac[lo^1];
