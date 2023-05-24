@@ -658,7 +658,7 @@ contlog_sqrt(contlog_t operand)
      return (ces.arg);
 }
 
-/* Compute f(x) = x / sqrt(1 + x*x) */
+/* Compute f(x) = 1 / sqrt(1 + x*x) */
 contlog_t
 contlog_recip_hypot1(contlog_t operand)
 {
@@ -671,7 +671,7 @@ contlog_recip_hypot1(contlog_t operand)
      (void)contlog_decode(operand, frac, 0);
      fracpart_t numer = frac[0];
      fracpart_t denom = frac[1];
-     fracpart_t quad[] = {0, 1, numer, denom};
+     fracpart_t quad[] = {0, 1, denom, numer};
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
      int overflow = 0;
@@ -680,14 +680,14 @@ contlog_recip_hypot1(contlog_t operand)
 	  /* Update quad to shrink range containing the result */
 	  fracpart_t sum[4];
 	  dotprod2(&sum[0], overflow,
-		   quad[j^0], quad[j^2], numer, 0);
+		   quad[j^0], quad[j^2], denom, 0);
 	  dotprod2(&sum[2], overflow,
-		   quad[j^1], quad[j^3], numer, 0);
+		   quad[j^1], quad[j^3], denom, 0);
 	  overflow = pack(2, &quad[j], sum);
 	  dotprod2(&sum[0], 0,
-		   quad[j^0], quad[j^2], numer, 2*denom);
+		   quad[j^0], quad[j^2], denom, 2*numer);
 	  dotprod2(&sum[2], 0,
-		   quad[j^1], quad[j^3], numer, 2*denom);
+		   quad[j^1], quad[j^3], denom, 2*numer);
 	  overflow += pack(2, &quad[j], sum);
 	  j ^= 2;
      } while (!contlog_encode_bounds(&ces, quad));
@@ -706,7 +706,12 @@ contlog_hypot(contlog_t op0, contlog_t op1)
 	  op1 = -op1;
      else if (op1 == 0)
 	  return (op0);
-     return (contlog_div(op0, contlog_recip_hypot1(contlog_div(op0, op1))));
+     if (op0 < op1) {
+	  contlog_t tmp = op0;
+	  op0 = op1;
+	  op1 = tmp;
+     }
+     return (contlog_div(op1, contlog_recip_hypot1(contlog_div(op0, op1))));
 }
 
 /* Compute log(1 + numer/denom) */
