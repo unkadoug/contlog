@@ -92,8 +92,8 @@ int main(int argc, char *argv[])
 			break;
 
 		case '@':
-			printf("1/hypot(1,x): ");
-			func_val = contlog_recip_hypot1(a);
+			printf("x/hypot(1,x): ");
+			func_val = contlog_sinarctan(a);
 			print_frac(func_val);
 			break;
 

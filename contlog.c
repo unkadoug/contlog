@@ -611,17 +611,10 @@ dotprod2(fracpart_t sum[], int overflow,
      sum[1] = prod1 + prod2;
 }
 
-/* Compute f(x) = sqrt(x) */
-contlog_t
-contlog_sqrt(contlog_t operand)
+/* Compute sqrt(numer/denom) */
+static contlog_t
+contlog_sqrt_frac(fracpart_t numer, fracpart_t denom)
 {
-     fracpart_t frac[2];
-     if (contlog_decode(operand, frac, 0))
-	  return (MINVAL);
-     int improper = frac[0] >= frac[1];
-     fracpart_t numer = frac[improper];
-     fracpart_t denom = frac[!improper];
-
      /*
       * Scale the argument down by a power of 4, to the range [1, 4), and the
       * result up by a power of 2, to avoid the higher iteration count that
@@ -653,14 +646,28 @@ contlog_sqrt(contlog_t operand)
 		   quad[j^1], quad[j^3], numer, 0);
 	  overflow += pack(2, &quad[j], sum);
      }
-     if (improper)
-	  ces.arg = MINVAL - ces.arg;
      return (ces.arg);
 }
 
-/* Compute f(x) = 1 / sqrt(1 + x*x) */
+/* Compute f(x) = sqrt(x) */
 contlog_t
-contlog_recip_hypot1(contlog_t operand)
+contlog_sqrt(contlog_t operand)
+{
+     fracpart_t frac[2];
+     if (contlog_decode(operand, frac, 0))
+	  return (MINVAL);
+     int improper = frac[0] >= frac[1];
+     fracpart_t numer = frac[improper];
+     fracpart_t denom = frac[!improper];
+     contlog_t arg = contlog_sqrt_frac(numer, denom);
+     if (improper)
+	  arg = MINVAL - arg;
+     return (arg);
+}
+
+/* Compute f(x) = x / sqrt(1 + x*x); ie, sin(arctan(x)) */
+contlog_t
+contlog_sinarctan(contlog_t operand)
 {
      if (operand < 0) {
 	  operand = -operand;
@@ -671,7 +678,7 @@ contlog_recip_hypot1(contlog_t operand)
      (void)contlog_decode(operand, frac, 0);
      fracpart_t numer = frac[0];
      fracpart_t denom = frac[1];
-     fracpart_t quad[] = {0, 1, denom, numer};
+     fracpart_t quad[] = {0, 1, numer, denom};
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
      int overflow = 0;
@@ -680,14 +687,14 @@ contlog_recip_hypot1(contlog_t operand)
 	  /* Update quad to shrink range containing the result */
 	  fracpart_t sum[4];
 	  dotprod2(&sum[0], overflow,
-		   quad[j^0], quad[j^2], denom, 0);
+		   quad[j^0], quad[j^2], numer, 0);
 	  dotprod2(&sum[2], overflow,
-		   quad[j^1], quad[j^3], denom, 0);
+		   quad[j^1], quad[j^3], numer, 0);
 	  overflow = pack(2, &quad[j], sum);
 	  dotprod2(&sum[0], 0,
-		   quad[j^0], quad[j^2], denom, 2*numer);
+		   quad[j^0], quad[j^2], numer, 2*denom);
 	  dotprod2(&sum[2], 0,
-		   quad[j^1], quad[j^3], denom, 2*numer);
+		   quad[j^1], quad[j^3], numer, 2*denom);
 	  overflow += pack(2, &quad[j], sum);
 	  j ^= 2;
      } while (!contlog_encode_bounds(&ces, quad));
@@ -706,12 +713,14 @@ contlog_hypot(contlog_t op0, contlog_t op1)
 	  op1 = -op1;
      else if (op1 == 0)
 	  return (op0);
-     if (op0 < op1) {
+     if (op0 == op1)
+	  return (contlog_div(op0, contlog_sqrt_frac(1, 2)));
+     if (op0 > op1) {
 	  contlog_t tmp = op0;
 	  op0 = op1;
 	  op1 = tmp;
      }
-     return (contlog_div(op1, contlog_recip_hypot1(contlog_div(op0, op1))));
+     return (contlog_div(op0, contlog_sinarctan(contlog_div(op0, op1))));
 }
 
 /* Compute log(1 + numer/denom) */
