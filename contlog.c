@@ -4,8 +4,8 @@
 #include "contlog.h"
 #define REP_NBITS (8*sizeof(CONTLOG_BASE))
 #define SGNBIT_POS (REP_NBITS - 1)
-#define MAXBITS (SGNBIT_POS + CONTLOG_RANGE)
-#define MINVAL (CONTLOG_RANGE ? 0 : -((CONTLOG_BASE)1 << SGNBIT_POS))
+#define MAXBITS (REP_NBITS - CONTLOG_SIGNED - CONTLOG_UNBOUNDED + 1)
+#define MINVAL (CONTLOG_SIGNED ? -((CONTLOG_BASE)1 << SGNBIT_POS) : 0)
 
 #define ffs(X) _Generic((X),			\
 			char: ffs,		\
@@ -86,8 +86,9 @@ contlog_decode(contlog_t operand, fracpart_t frac[], int upscale)
  * upper bound is bound[2]/bound[3].  'frac' is a 4-element array; the result is
  * stored in its first two elements.
  */
+typedef unsigned CONTLOG_BASE ufracpart_t;
 static void
-contlog_find_simplest(contlog_t bound[], int open, fracpart_t frac[])
+contlog_find_simplest(ufracpart_t bound[], int open, fracpart_t frac[])
 {
      int lo;
      fracpart_t gap = 0, val;
@@ -244,13 +245,14 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 	  }
 	  lo ^= 3;
      }
+#if (CONTLOG_UNBOUNDED)
      if (quad[lo] > quad[lo^1]) {
 	  /* result > 1 */
 	  if (MINVAL || quad[lo^1] != 0)
 	       arg = 2 * (arg - (lo&1)) + 1; /* result = 1 / result */
 	  lo ^= 3;
      }
-
+#endif
      /* Extract bits into arg until either arg is filled, or lower
       * (quad[lo]/quad[lo^1]) and upper (quad[lo^2]/quad[lo^3]) bound ratios
       * have been pushed too far apart.
@@ -370,7 +372,7 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
      int nbits = REP_NBITS;
      int neg = 0;
      int improper = 0;
-#if (CONTLOG_RANGE <= 0)
+#if (CONTLOG_SIGNED)
      if (operand >> SGNBIT_POS) {
 	  neg = 1;
 	  operand = -operand;
@@ -379,7 +381,7 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
      --nbits;
 #endif
      int zero = operand == 0;
-#if (CONTLOG_RANGE <= 1)
+#if (CONTLOG_UNBOUNDED)
      if (operand >> SGNBIT_POS) {
 	  improper = 1;
 	  operand = -operand;
@@ -393,7 +395,7 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
       * Find lower and upper bounds on the range of fractions represented by
       * 'operand'.
       */
-     contlog_t quad[] = {0, 1, 1, 0};
+     ufracpart_t quad[] = {0, 1, 1, 0};
      while (operand != 0) {
 	  /* Find the leftmost set bit position of operand and shift the bit
 	   * out. Negate the rest. */
@@ -411,7 +413,7 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
       * overflow; in that case assume that the exact value is simplest.
       */
      fracpart_t frac[] = {1, 0, 0, 1};
-     contlog_t mid[] = {quad[j^0] + quad[j^2], quad[j^1] + quad[j^3]};
+     ufracpart_t mid[] = {quad[j^0] + quad[j^2], quad[j^1] + quad[j^3]};
      if (zero) {
 	  frac[0] = 0;
 	  frac[1] = 1;
@@ -441,7 +443,7 @@ static contlog_t
 contlog_arith(contlog_t operand, fracpart_t quad[])
 {
      int j = 0;
-#if (CONTLOG_RANGE <= 0)
+#if (CONTLOG_SIGNED)
      if (operand >> SGNBIT_POS) {
 	  for (int i = 0; i < 2; ++i) {
 	       quad[i] -= quad[i^2];
@@ -452,7 +454,7 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
      operand <<= 1;
 #endif
      int nonzero = operand != 0;
-#if (CONTLOG_RANGE <= 1)
+#if (CONTLOG_UNBOUNDED)
      if (operand >> SGNBIT_POS) {
 	  operand = -operand;
 	  j ^= 2;

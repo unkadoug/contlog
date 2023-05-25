@@ -1,23 +1,24 @@
-
 /* How big should the representation be? */
 #if !defined(CONTLOG_BASE)
 #define CONTLOG_BASE int
 #endif
 
-/* Should the numbers represented include all rationals (0), nonnegative
- * rationals (1) or unit-interval rationals (2) ?
- */
-#if !defined(CONTLOG_RANGE)
-#define CONTLOG_RANGE 0
+/* Should the numbers represented include negative numbers? */
+#if !defined(CONTLOG_SIGNED)
+#define CONTLOG_SIGNED 1	/* yes, by default */
 #endif
-
-#if (CONTLOG_RANGE == 0)
-#define CONTLOG_SIGNED
+#if CONTLOG_SIGNED == 1
+#define CONTLOG_SIGNED_MOD signed
 #else
-#define CONTLOG_SIGNED unsigned
+#define CONTLOG_SIGNED_MOD unsigned
 #endif
 
-typedef CONTLOG_SIGNED CONTLOG_BASE contlog_t;
+/* Should the numbers represented include values outside the unit interval? */
+#if !defined(CONTLOG_UNBOUNDED)
+#define CONTLOG_UNBOUNDED 1	/* yes, by default */
+#endif
+
+typedef CONTLOG_SIGNED_MOD CONTLOG_BASE contlog_t;
 typedef CONTLOG_BASE fracpart_t;
 
 /* use continued logrithms, as described by Gosper,
