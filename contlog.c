@@ -521,6 +521,25 @@ contlog_mult(contlog_t op0, contlog_t op1)
      return (neg ? -val : val);
 }
 
+/* Compute x*(1-y) */
+contlog_t
+contlog_compmult(contlog_t op0, contlog_t op1)
+{
+     fracpart_t frac[2];
+     int neg = contlog_decode(op1, frac, 1);
+     if (neg)
+	  frac[0] += frac[1];
+     else
+	  frac[0] = frac[1] - frac[0];
+     neg = frac[0] < 0;
+     if (neg)
+	  frac[0] = -frac[0];
+     fracpart_t quad[] = {0, frac[1], frac[0], 0};
+     contlog_t val = contlog_arith(op0, quad);
+     return (neg ? -val : val);
+}
+
+
 /* Compute x/y */
 contlog_t
 contlog_div(contlog_t op0, contlog_t op1)

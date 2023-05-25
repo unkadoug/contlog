@@ -42,10 +42,20 @@ static int usage(const char *cmd)
 	       "x and y are rationals, expressed as fractions like 3/7 "
 	       "or as hex representations,\n"
 	       "and\n"
-	       "op is from '+', '-', '*', '/', 'H' (harmonic sum), "
-	       "'T' (arctangent sum), '@' (pythagorean sum).\n"
-	       "where unary ops are '/' (square root), 'e' (exponential), "
-	       "'l' (log1p), '@' (1/sqrt(1+x*x)).\n",
+	       "op is from\n"
+	       "'+' (arithmetic sum)\n"
+	       "'-' (difference)\n"
+	       "'*' (product x*y)\n"
+	       "'~' (product with complement x*(1-y)\n"
+	       "'/' (ratio)\n"
+	       "'H' (harmonic sum 1/(1/x + 1/y))\n"
+	       "'T' (arctangent sum (x+y)/(1-x*y))\n"
+	       "'@' (pythagorean sum sqrt(x*x + y*y))\n"
+	       "and where unary ops are\n"
+	       "'/' (square root)\n"
+	       "'e' (inverse exponential 1/e**x)\n"
+	       "'l' (log1p ln(1+x))\n"
+	       "'@' (sin(arctan(x)) x/sqrt(1+x*x)\n",
 	       cmd, cmd, cmd);
 	return 0;
 }
@@ -129,43 +139,48 @@ int main(int argc, char *argv[])
 	contlog_t b = sscan_frac(argv[3]);
 	printf("y: ");
 	print_frac(b);
-  
+
 	switch (op) {
 	case '+':
 		printf("x+y: ");
 		print_frac(contlog_add(a, b));
 		break;
-    
+
 	case '-':
 		printf("x-y: ");
 		print_frac(contlog_sub(a, b));
 		break;
-    
+
 	case '*':
 		printf("x*y: ");
 		print_frac(contlog_mult(a, b));
 		break;
-    
+
+	case '~':
+		printf("x*(1-y): ");
+		print_frac(contlog_compmult(a, b));
+		break;
+
 	case '/':
 		printf("x/y: ");
 		print_frac(contlog_div(a, b));
 		break;
-    
+
 	case 'T':
 		printf("(x+y)/(1-xy): ");
 		print_frac(contlog_atnsum(a, b));
 		break;
-    
+
 	case 'H':
 		printf("xy/(x+y): ");
 		print_frac(contlog_harmsum(a, b));
 		break;
-    
+
 	case '@':
 		printf("sqrt(x*x+y*y): ");
 		print_frac(contlog_hypot(a, b));
 		break;
-    
+
 	default:
 		break;
 	}

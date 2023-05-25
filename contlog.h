@@ -32,6 +32,7 @@ contlog_t contlog_encode_frac(fracpart_t pair[]);
 contlog_t contlog_add(contlog_t op0, contlog_t op1);
 contlog_t contlog_sub(contlog_t op0, contlog_t op1);
 contlog_t contlog_mult(contlog_t op0, contlog_t op1);
+contlog_t contlog_compmult(contlog_t op0, contlog_t op1);
 contlog_t contlog_div(contlog_t op0, contlog_t op1);
 contlog_t contlog_atnsum(contlog_t op0, contlog_t op1);
 contlog_t contlog_harmsum(contlog_t op0, contlog_t op1);
