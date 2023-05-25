@@ -18,10 +18,17 @@
 			unsigned long: ffsl,	\
 			long long: ffsll	\
 	  )(X)
+
+static int
+short_fls(contlog_t x) {
+     int f = fls(x);
+     return (f <= REP_NBITS? f : REP_NBITS);
+}
+
 #define fls(X) _Generic((X),			\
-			char: fls,		\
+			char: short_fls,	\
 			unsigned char: fls,	\
-			short: fls,		\
+			short: short_fls,	\
 			unsigned short: fls,	\
 			int: fls,		\
 			unsigned: fls,		\
@@ -528,9 +535,8 @@ contlog_compmult(contlog_t op0, contlog_t op1)
      fracpart_t frac[2];
      int neg = contlog_decode(op1, frac, 1);
      if (neg)
-	  frac[0] += frac[1];
-     else
-	  frac[0] = frac[1] - frac[0];
+	  frac[0] = -frac[0];
+     frac[0] = frac[1] - frac[0];
      neg = frac[0] < 0;
      if (neg)
 	  frac[0] = -frac[0];
