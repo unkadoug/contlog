@@ -5,7 +5,7 @@
 #define REP_NBITS (8*sizeof(CONTLOG_BASE))
 #define SGNBIT_POS (REP_NBITS - 1)
 #define MAXBITS (SGNBIT_POS + CONTLOG_RANGE)
-#define MINVAL (CONTLOG_RANGE ? 0 : (CONTLOG_BASE)1 << SGNBIT_POS)
+#define MINVAL (CONTLOG_RANGE ? 0 : -((CONTLOG_BASE)1 << SGNBIT_POS))
 
 #define ffs(X) _Generic((X),			\
 			char: ffs,		\
