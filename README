@@ -2,127 +2,94 @@ Contlog - representing numbers as continued logarithms
 
 Introduction
 
+Consider this version of the binary GCD algorithm, for finding the greatest common
+divisor of two positive numbers using only shifting and subtraction.
+
+int gcd(int pair[2])
+{
+	int shift = ffs(pair[0] | pair[1]) - 1;
+	pair[0] >>= shift;
+	pair[1] >>= shift;
+	for (int i = pair[0] >= pair[1]; pair[0] != pair[1]; i ^= 1) {
+		while (pair[i] << 1 < pair[i^1]) {
+			pair[i] <<= 1;
+			printf("%d", i);
+		}
+		pair[i^1] -= pair[i];
+		printf("%d", i);
+	}
+	pair[0] >>= ffs(pair[0]) - 1;
+	printf("1\n");
+	return (pair[0] << shift);
+}
+
+The print statements in the function log the transformations made to
+the values that ultimately made them match, to end the iteration.
+They also write a binary representation of the rational number that is
+the ratio of the two inputs.
+
 In his notes on continued fraction arithmetic, Gosper introduced
-continued logarithms as an alternative to continued fractions for
-representing real numbers.  Continued logarithms are based on ones and
-zeroes, not arbitrary integer values, and are thus better suited to
-binary representation.  In his representation, if s is a string of
-bits that represents some real number x, then the strings 1s and 0s
-respresent, respectively, the numbers 2x and 1+1/x.  Assume that the
-empty bit string represents infinity (oo), so that the first few
-positive integers are expressed as
+continued logarithms as a binary alternative to continued fractions
+for representing real numbers.  The representation here is only
+slightly different from the one he proposed.  He observed that a
+string of bits like
 
-1: 0
-2: 10
-3: 1010
-4: 110
-5: 110110
+110110001
 
-Define the right-associative ':' operator by
-x:y = 2**x + (2**x)/y
-so that the expression of 5 above can be seen as
-5 = 2:2:oo = 4+4/(4+1/oo)
-and more generally, a binary string
-(1^a)0(1^b)0(1^c)0(1^d)0...
-represents the number
-a:b:c:d:...
+can represent the fraction
 
-There are small problems with this representaion, but small
-corrections can address them.  First, it's a representation ill suited
-to fixed width fields.  Adding an extra 0 or 1 at the beginning or end
-of a string changes its value, so it seems that a length must be
-stored separately, or a special terminating character must be added.
-It is also not immediately clear which of two given bitstrings
-represents the larger of two values.  Also, numbers less than one are
-not given a representation.
+2**1 + 2**1 / (
+       2**0 + 2**0 / (
+               2**1 + 2**1 / (
+	               2**2 + 2**2 / (
+		              2**0))))
 
-Representation
+which is 44/13.  The first substring of n+1 1-bits shows that the
+value is between 2**n and 2**(n+1).  After subtracting 2**n, and
+dividing by 2**n, the value left is expressed in the bits that follow,
+beginning with a string of 0-bits.  Each set of matching bits
+represents the integer part of a binary logarithm, thus the name
+'continued logarithms'.
 
-To address those problems, define the contlog representation of a
-number as follows.
+The representation here has the virtue that the mapping from a set of
+bits, interpreted as a binary integer, to a rational number, is
+monotonic.  That is, if integer i maps to rational number p, and
+integer j maps to rational number q, then i < j if and only if p < q.
+This is not a characteristic of Gosper's initially proposed
+representation.
 
-An incomplete string of 0's of infinite length, represents oo.
+Strictly speaking, Gosper's encoding only represented numbers greater
+than or equal to one.  The representation presented here can represent
+proper fractions by beginning the bitstring with 0-bits instead of
+1-bits.  It can also include a twos-complement representation for
+negative values.
 
-If s is an incomplete string that represents the number x, and b is a
-bit to be prepended to the incomplete string, then bx is an incomplete
-string that represents the number 2x, if b is the first bit of x, and
-1+1/x if b is not the first bit of x.
-
-If s is an incomplete string that will have no more bits prepended to
-it, then the unsigned completed string represents the number x if the
-first bit of s is 1, and 1/x otherwise.
-
-In the unsigned contlog representation, the first few positive integers are
-
-1: 1
-2: 11
-3: 1101
-4: 111
-5: 111001
-6: 11101
-7: 11101101
-8: 1111
-9: 11110001
-
-and their reciprocals are the twos-complement negations of those representations:
-1/1: 1
-1/2: 01
-1/3: 0011
-1/4: 001
-1/5: 000111
-1/6: 00011
-1/7: 00010011
-1/8: 0001
-1/9: 00001111
-
-More generally, the bitstring
-(1^a)(0^b)(1^c)(0^d)...
-represents the number
-(a-1):(b-1):(c-1):(d-1):...
-and the bitstring
-(0^a)(1^b)(0^c)(1^d)...
-represents the reciprocal of that number.
-
-Finally, to get signed numbers, prepend a 0 to the unsigned completed
-string that represents x, and that string represents x in the signed
-representation; take its twos-complement for the negative of that
-value.
-
-With 4 bits, and assuming that all the bits after the first four are
-zero, the numbers that can be represented are
-
-0000:  0/1  0100:  1/1  1000: -1/0  1100: -1/1
-0001:  1/4  0101:  3/2	1001: -4/1  1101: -2/3
-0010:  1/2  0110:  2/1	1010: -2/1  1110: -1/2
-0011:  2/3  0111:  4/1	1011: -3/2  1111: -1/4
-
-If two twos-complement integers i and j satisfy i < j, and those bits
-are interpreted instead as contlog representations of rational numbers
-contlog(i) and contlog(j), then necessarily contlog(i) < contlog(j).
 
 Extracting ratios from this representation
 
 While this representation is great for representing exactly rational
 numbers with small numerator and denominator in just a few bits, it
 sacrifices the representation of large numbers, especially ones near
-powers of two.  For example 127=6:0:5:0:4:0:3:0:2:0:1:0:0, so the
-signed contlog representation of 127 requires 36 bits before the
-infinite string of zeroes begins.  Computing a 32-bit approximation to
-127/1 requires rounding; this implementation rounds up or down if the
-truncated bits are lexicographically more or less than "1000..", and
-otherwise round toward the value with 0 as its last stored bit.
+powers of two.  For example 127/1 is represented by
 
-Translating that bit string back to a rational number, leads to the
-result 6:0:5:0:4:0:3:0:3 = 37722176/297025, which is not likely to be
-an expected result.  To provide a more expected result, this
-implementation considers a fixed size bit string to represent the
-interval that includes all the ratios that would be converted to that
-bit string, and picks the one to represent the interval that has the
-smallest denominator.  For a fixed-size bit string that ends in a
+1111111011111101111101111011101101
+
+so the signed contlog representation of 127 requires 36 bits.
+Computing a 32-bit approximation to 127/1 requires rounding; this
+implementation rounds to nearest, or to even integer representations
+in case of a tie.
+
+Translating that truncated bit string back to a rational number, leads
+to the result 37722176/297025, which is not likely to be an expected
+result.  To provide a more expected result, this implementation
+considers a fixed size bit string to represent the interval that
+includes all the ratios that would be converted to that bit string,
+and picks the one to represent the interval that has the smallest
+numerator and denominator.  For a fixed-size bit string that ends in a
 zero, that includes the values at the endpoints of the interval, and
 for the others, it does not.  Otherwise, two consecutive bit strings
 could map to the same ratio.  For the case of 127/1, this produces the
-expect result 127/1.  For 1000/999, the result looks like 1000/999,
+expected result 127/1.  For 1000/999, the result looks like 1000/999,
 and not 470999/470528.
 
 Arithmetic
@@ -139,11 +106,13 @@ operands.  So, for example, to compute x + y, first find that y=n/d, and then fo
 
 (n + dx) / (d + 0x)
 
-and update the four coefficients as the leading bits of x are
-consumed.  When such an update would lead to overflow, scale the
-coefficents down first, to prevent the overflow.  The result can be a
-value with a zero denominator, when the computed value is too large or
-small to be approximated in the number of available bits.
+and update the four coefficients as the program consumes the leading
+bits of x.  When such an update leads to overflow, scale the
+coefficents down, to fit within the fixed number of bits available.
+
+After every incremental update, examine the coefficients to see if
+some of the output bits can be extracted.
+
 
 Test program
 
