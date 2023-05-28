@@ -40,9 +40,9 @@ can represent the fraction
 
 2**1 + 2**1 / (
        2**0 + 2**0 / (
-               2**1 + 2**1 / (
-	               2**2 + 2**2 / (
-		              2**0))))
+              2**1 + 2**1 / (
+	             2**2 + 2**2 / (
+		            2**0))))
 
 which is 44/13.  The first substring of n+1 1-bits shows that the
 value is between 2**n and 2**(n+1).  After subtracting 2**n, and
