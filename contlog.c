@@ -168,7 +168,9 @@ contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
      }
 
      do {
-	  int shift = min(lgratio(pair[lo^1], pair[lo]), nbits);
+	  int shift = nbits;
+	  if (pair[lo] != 0)
+	       shift = min(lgratio(pair[lo^1], pair[lo]), shift);
 	  pair[lo] <<= shift;
 	  arg <<= shift;	/* result <<= shift */
 	  if ((nbits -= shift) == 0)
@@ -267,7 +269,8 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 			 break;
 	       }
 	       /* -1/2 <= result <= 1/2 */
-	       shift = min(lgratio(quad[lo^3], quad[lo^2]), shift);
+	       if (quad[lo^2] > 0)
+		    shift = min(lgratio(quad[lo^3], quad[lo^2]), shift);
 	       quad[lo] <<= shift;
 	       quad[lo^2] <<= shift;
 	       arg <<= shift;	/* result <<= shift */
