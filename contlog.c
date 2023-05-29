@@ -305,8 +305,12 @@ pack(int n, fracpart_t result[], fracpart_t sum[])
 {
      fracpart_t mask = 0;
      for (int i = 0; i < n; ++i) {
-	  fracpart_t s = 2 * sum[2*i] + ((sum[2*i+1] >> SGNBIT_POS) & 1);
-	  mask |= (s < 0) ? -s : s;
+	  fracpart_t hi = sum[2*i], lo = sum[2*i+1];
+	  if (hi < 0) {
+	       lo = -lo;
+	       hi = ~hi + (lo == 0);
+	  }
+	  mask |= 2 * hi + (lo < 0);
      }
      int overflow = fls(mask);
      mask = ((fracpart_t)1 << 1 << (SGNBIT_POS - overflow)) - 1;
