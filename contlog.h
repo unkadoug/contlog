@@ -1,3 +1,12 @@
+/* Use continued logrithms, as described by Gosper
+ * (https://perl.plover.com/yak/cftalk/INFO/gosper.txt) to implement basic
+ * arithmetic and a few useful functions.
+ *
+ * Author: Doug Moore (unkadoug@gmail.com)
+ * Use it, share it, make it replace floating point everywhere. Just keep my
+ * name in it somewhere.
+ */
+
 /* How big should the representation be? */
 #if !defined(CONTLOG_BASE)
 #define CONTLOG_BASE int
@@ -20,13 +29,6 @@
 
 typedef CONTLOG_SIGNED_MOD CONTLOG_BASE contlog_t;
 typedef CONTLOG_BASE fracpart_t;
-
-/* use continued logrithms, as described by Gosper,
- * but with logs a, b, c, d, ... represented as bits
- * 11^a 00^b 11^c 00^d ...
- * so that x < y for rationals x and y iff rep(x) < rep(y),
- * where rep(x) is the integer that stores the representation of x.
- */
 
 void contlog_decode_frac(contlog_t operand, fracpart_t pair[]);
 contlog_t contlog_encode_frac(fracpart_t pair[]);
