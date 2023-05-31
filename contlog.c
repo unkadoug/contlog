@@ -508,6 +508,16 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
      zero &= !neg;
 #endif
 
+     /*
+      * If operand is tiny, and numerators are tiny, scale them all up, to avoid
+      * shifting denominators way right on the first iteration and losing info.
+      */
+     int shift = min(REP_NBITS - fls(operand),
+		     SGNBIT_POS - fls(quad[j^0] | quad[j^1]));
+     operand <<= shift;
+     quad[j^0] <<= shift;
+     quad[j^1] <<= shift;
+
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
      int overflow = 0;
@@ -538,7 +548,7 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
      }
      if (!zero)
 	  return (ces.arg);
-     return(contlog_encode_exact(ces.nbits, ces.lo&1, ces.arg, &quad[j]));
+     return (contlog_encode_exact(ces.nbits, ces.lo&1, ces.arg, &quad[j]));
 
 }
 
