@@ -695,7 +695,9 @@ contlog_sqrt_frac(fracpart_t numer, fracpart_t denom)
       * comes with larger values.
       */
      int shift = lgratio(denom, numer) / 2;
-     numer <<= 2 * shift;
+     int ffsd = min(2 * shift, ffs(denom) - 1);
+     numer <<= 2 * shift - ffsd;
+     denom >>= ffsd;
      fracpart_t quad[] = {2*numer, numer+denom, 1, 1};
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
