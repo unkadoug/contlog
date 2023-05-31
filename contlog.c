@@ -393,10 +393,11 @@ contlog_decode_frac(contlog_t operand, ufracpart_t pair[])
      zero &= !neg;
 #if (!CONTLOG_SIGNED)
      /*
-      * If the value in [1/2, 1), negate operand to compute not numer/denom, but
-      * (denom-numer)/(2*numer), because that has smaller intermediate values
-      * and reduces overflow risk.  This eliminates overflow in the all-ones
-      * case.  When completed, transfrom the result back to numer/denom.
+      * If the value is in [1/2, 1), negate operand to compute not numer/denom,
+      * but (denom-numer)/(2*numer), because that has smaller intermediate
+      * values and reduces overflow risk.  This eliminates overflow in the
+      * all-ones case.  When completed, transfrom the result back to
+      * numer/denom.
       */
      if (operand >> SGNBIT_POS) {
 	  big = 1;
@@ -447,7 +448,8 @@ contlog_decode_frac(contlog_t operand, ufracpart_t pair[])
 		    break;
 	  }
 	  /*
-	   * Compute 'mid', the exact ratio expressed by operand, and update
+	   * Ignoring that everything was just transformed according to 'frac',
+	   * compute 'mid', the exact ratio expressed by operand, and update
 	   * 'quad' to the values of the lower and upper bounds of the set of
 	   * values that map to operand.  Then find the simplest ratio in the
 	   * interval.
