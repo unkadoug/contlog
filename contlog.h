@@ -28,9 +28,10 @@
 #endif
 
 typedef CONTLOG_SIGNED_MOD CONTLOG_BASE contlog_t;
+typedef unsigned CONTLOG_BASE ufracpart_t;
 typedef CONTLOG_BASE fracpart_t;
 
-void contlog_decode_frac(contlog_t operand, fracpart_t pair[]);
+int contlog_decode_frac(contlog_t operand, ufracpart_t pair[]);
 contlog_t contlog_encode_frac(fracpart_t pair[]);
 contlog_t contlog_add(contlog_t op0, contlog_t op1);
 contlog_t contlog_sub(contlog_t op0, contlog_t op1);

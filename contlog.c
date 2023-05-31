@@ -86,9 +86,8 @@ contlog_decode(contlog_t operand, fracpart_t frac[], int upscale)
  * upper bound is bound[2]/bound[3].  'frac' is a 4-element array; the result is
  * stored in its first two elements.
  */
-typedef unsigned CONTLOG_BASE ufracpart_t;
 static void
-contlog_find_simplest(ufracpart_t bound[], int open, fracpart_t frac[])
+contlog_find_simplest(ufracpart_t bound[], int open, ufracpart_t frac[])
 {
      int lo;
      fracpart_t gap = 0, val;
@@ -116,25 +115,15 @@ contlog_find_simplest(ufracpart_t bound[], int open, fracpart_t frac[])
 }
 
 /*
- * For n >= d, compute the floor(log2(n/d)) with bit operations.  For d==0,
- * return a big number.
+ * For n >= d, compute the floor(log2(n/d)) with bit operations.
  */
 static int
 lgratio(fracpart_t n, fracpart_t d)
 {
-     if (d == 0)
-	  return (REP_NBITS);
-
      int lg = fls(n) - fls(d);
-     if (lg >= 0) {
-	  if (n < d << lg)
-	       --lg;
-     } else {
-	  abort();
-	  if (n << -lg < d)
-	       --lg;
-     }
-     return (lg);
+     n -= d << lg;
+     n >>= 8 * sizeof(n) - 1;
+     return (lg + n);
 }
 
 static int
@@ -147,8 +136,8 @@ min(int a, int b)
 static contlog_t
 contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
 {
-     if (-pair[lo] > 0) {
-	  /* result < 0; flip to positive value */
+     if (-pair[lo] >= 0) {
+	  /* result <= 0; flip to positive value */
 	  int shift = ffs(arg) - 1;
 	  pair[lo] += pair[lo^1];
 	  pair[lo^1] -= pair[lo];
@@ -162,6 +151,10 @@ contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
      }
      if (pair[lo] > pair[lo^1]) {
 	  /* result > 1 */
+#if (!CONTLOG_SIGNED && !CONTLOG_UNBOUNDED)
+	  if (pair[lo] == pair[lo^1])
+	       return (0);	/* avoids too-much bit shift */
+#endif
 	  if (MINVAL || pair[lo^1] != 0)
 	       arg = 2 * (arg - lo) + 1;	/* result = 1 / result */
 	  lo ^= 1;
@@ -232,8 +225,8 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
      int nbits = ces->nbits;
      int lo = ces->lo;
      contlog_t arg = ces->arg;
-     if (-quad[lo^2] > 0) {
-	  /* result < 0, flip to positive value */
+     if (-quad[lo^2] >= 0) {
+	  /* result <= 0, flip to positive value */
 	  int shift = ffs(arg) - 1;
 	  for (int i = lo&1; i < 4; i += 2) {
 	       quad[i] += quad[i^1];
@@ -247,14 +240,14 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 	  }
 	  lo ^= 3;
      }
-#if (CONTLOG_UNBOUNDED)
-     if (quad[lo] > quad[lo^1]) {
-	  /* result > 1 */
+
+     if (quad[lo] >= quad[lo^1]) {
+	  /* result >= 1 */
 	  if (MINVAL || quad[lo^1] != 0)
 	       arg = 2 * (arg - (lo&1)) + 1; /* result = 1 / result */
 	  lo ^= 3;
      }
-#endif
+
      /* Extract bits into arg until either arg is filled, or lower
       * (quad[lo]/quad[lo^1]) and upper (quad[lo^2]/quad[lo^3]) bound ratios
       * have been pushed too far apart.
@@ -371,13 +364,12 @@ debug_print(contlog_t operand, fracpart_t quad[], int j)
  * presentation, not for calculation.  For even operand, frac may lie on the
  * boundary of the interval.
  */
-void
-contlog_decode_frac(contlog_t operand, fracpart_t pair[])
+int
+contlog_decode_frac(contlog_t operand, ufracpart_t pair[])
 {
-     int j = 0;
      int nbits = REP_NBITS;
+     int j = 0;
      int neg = 0;
-     int improper = 0;
 #if (CONTLOG_SIGNED)
      if (operand >> SGNBIT_POS) {
 	  neg = 1;
@@ -386,15 +378,32 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
      operand <<= 1;
      --nbits;
 #endif
+     int improper = 0;
      int zero = operand == 0;
+     int big = 0;
 #if (CONTLOG_UNBOUNDED)
      if (operand >> SGNBIT_POS) {
 	  improper = 1;
 	  operand = -operand;
-     } else if (neg && zero)
-	  improper = 1;
+     } else if (operand == 0)
+	  improper = neg;
      operand <<= 1;
      --nbits;
+#else
+     zero &= !neg;
+#if (!CONTLOG_SIGNED)
+     /*
+      * If the value in [1/2, 1), negate operand to compute not numer/denom, but
+      * (denom-numer)/(2*numer), because that has smaller intermediate values
+      * and reduces overflow risk.  This eliminates overflow in the all-ones
+      * case.  When completed, transfrom the result back to numer/denom.
+      */
+     if (operand >> SGNBIT_POS) {
+	  big = 1;
+	  improper = 1;
+	  operand = -operand;
+     }
+#endif
 #endif
 
      /*
@@ -418,16 +427,32 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
      /* Compute the simplest fraction in the interval, unless compution leads to
       * overflow; in that case assume that the exact value is simplest.
       */
-     fracpart_t frac[] = {1, 0, 0, 1};
-     ufracpart_t mid[] = {quad[j^0] + quad[j^2], quad[j^1] + quad[j^3]};
+     ufracpart_t frac[] = {1, 0, 0, 1};
      if (zero) {
 	  frac[0] = 0;
 	  frac[1] = 1;
      } else {
-	  int extra_bits = nbits + fls(mid[0] | mid[1]) - REP_NBITS;
-	  if (extra_bits > 0) {
-	       nbits -= extra_bits;
+	  /*
+	   * Start the computation of contlog_find_simplest before computing
+	   * 'mid', the exact ratio, in order to reduce values so that
+	   * subsequent calculation doesn't overflow.
+	   */
+	  for (int lo = 0; quad[lo^2] != 0; lo ^= 3) {
+	       ufracpart_t val = quad[lo^3] / quad[lo^2];
+	       quad[lo^1] -= val * quad[lo^0];
+	       quad[lo^3] -= val * quad[lo^2];
+	       frac[lo^0] += val * frac[lo^2];
+	       frac[lo^1] += val * frac[lo^3];
+	       if (quad[lo^0] == 0 || val != quad[lo^1] / quad[lo^0])
+		    break;
 	  }
+	  /*
+	   * Compute 'mid', the exact ratio expressed by operand, and update
+	   * 'quad' to the values of the lower and upper bounds of the set of
+	   * values that map to operand.  Then find the simplest ratio in the
+	   * interval.
+	   */
+	  ufracpart_t mid[] = {quad[j^0] + quad[j^2], quad[j^1] + quad[j^3]};
 	  mid[0] <<= nbits;
 	  mid[1] <<= nbits;
 	  quad[j^0] += mid[0];
@@ -436,10 +461,16 @@ contlog_decode_frac(contlog_t operand, fracpart_t pair[])
 	  quad[j^3] += quad[j^3] + mid[1];
 	  contlog_find_simplest(quad, nbits == 0, frac);
      }
+     if (big) {
+	  /* We have (denom-numer)/(2*numer).  Transform back to numer/denom. */
+	  if (frac[1] % 2 == 0)
+	       frac[0] += (frac[1] /= 2);
+	  else
+	       frac[0] += frac[0] + frac[1];
+     }
      pair[0] = frac[improper];
      pair[1] = frac[!improper];
-     if (neg)
-	  pair[0] = -pair[0];
+     return (neg);
 }
 
 /*
@@ -449,28 +480,36 @@ static contlog_t
 contlog_arith(contlog_t operand, fracpart_t quad[])
 {
      int j = 0;
+     int neg = 0;
 #if (CONTLOG_SIGNED)
      if (operand >> SGNBIT_POS) {
+	  neg = 1;
 	  for (int i = 0; i < 2; ++i) {
 	       quad[i] -= quad[i^2];
 	       quad[i^2] += quad[i];
 	       quad[i] -= quad[i^2];
 	  }
+	  j ^= 2;
+	  operand = -operand;
      }
      operand <<= 1;
 #endif
-     int nonzero = operand != 0;
+     int zero = operand == 0;
 #if (CONTLOG_UNBOUNDED)
      if (operand >> SGNBIT_POS) {
-	  operand = -operand;
 	  j ^= 2;
-     }
+	  operand = -operand;
+     } else if (operand == 0 && neg)
+	  j ^= 2;
      operand <<= 1;
+#else
+     zero &= !neg;
 #endif
+
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
      int overflow = 0;
-     while (nonzero) {
+     while (!zero) {
 	  /* Find the leftmost set bit position of operand and shift the bit
 	   * out. */
 	  int shift = -1;
@@ -482,7 +521,7 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
 	  if (operand == 0) {
 	       if (++shift == REP_NBITS)
 		    break;
-	       nonzero = 0;
+	       zero = 1;
 	  }
 	  overflow += shift;
 
@@ -495,7 +534,7 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
 	  if (contlog_encode_bounds(&ces, quad))
 	       break;
      }
-     if (operand != 0)
+     if (!zero)
 	  return (ces.arg);
      return(contlog_encode_exact(ces.nbits, ces.lo&1, ces.arg, &quad[j]));
 
@@ -862,7 +901,9 @@ contlog_cssqrt(contlog_t operand, int n)
 {
      fracpart_t frac[2];
      int neg = contlog_decode(operand, frac, 0);
-     fracpart_t numer = neg ? -frac[0] : frac[0];
+     if (neg)
+	  return (MINVAL);
+     fracpart_t numer = frac[0];
      fracpart_t denom = frac[1];
      fracpart_t L = 1;
      fracpart_t quad[] = {0, 1, denom, denom};

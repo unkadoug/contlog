@@ -24,14 +24,14 @@ sscan_frac(const char *s)
 void
 print_frac(contlog_t operand)
 {
-	fracpart_t pair[2];
-	contlog_decode_frac(operand, pair);
-	__intmax_t nx = pair[0];
-	__intmax_t dx = pair[1];
+	ufracpart_t pair[2];
+	int neg = contlog_decode_frac(operand, pair);
+	__uintmax_t nx = pair[0];
+	__uintmax_t dx = pair[1];
 	__intmax_t opx = operand;
 	int sh = 4*sizeof(contlog_t);
 	opx -= opx >> sh >> sh << sh << sh;
-	printf("%jd/%jd (%0*jx) = %18.12f\n", nx, dx,
+	printf("%s%ju/%ju (%0*jx) = %18.12f\n", neg?"-":"", nx, dx,
 	       (int)(2*sizeof(contlog_t)), opx,
 	       (double)pair[0]/pair[1]);
 }
@@ -63,11 +63,11 @@ static int usage(const char *cmd)
 int main(int argc, char *argv[])
 {
 #if 0
-	fracpart_t pair[2];
+	ufracpart_t pair[2];
 	double last = 0.;
 	unsigned i = 0x10000000;
 	do {
-		contlog_decode_frac(i, pair);
+		int neg = contlog_decode_frac(i, pair);
 		double next = (double)pair[0]/pair[1];
 		if (next <= last)
 			printf("i: %u, %g, %g\n", i, last, next);
