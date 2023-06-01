@@ -512,11 +512,13 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
       * If operand is tiny, and numerators are tiny, scale them all up, to avoid
       * shifting denominators way right on the first iteration and losing info.
       */
-     int shift = min(REP_NBITS - fls(operand),
-		     SGNBIT_POS - fls(quad[j^0] | quad[j^1]));
-     operand <<= shift;
-     quad[j^0] <<= shift;
-     quad[j^1] <<= shift;
+     if (operand != 0) {
+	  int shift = REP_NBITS -
+	       fls(operand | (quad[j^0] << 1) | (quad[j^1] << 1));
+	  operand <<= shift;
+	  quad[j^0] <<= shift;
+	  quad[j^1] <<= shift;
+     }
 
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
