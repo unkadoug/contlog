@@ -33,7 +33,7 @@ print_frac(contlog_t operand)
 	opx -= opx >> sh >> sh << sh << sh;
 	printf("%s%ju/%ju (%0*jx) = %18.12f\n", neg?"-":"", nx, dx,
 	       (int)(2*sizeof(contlog_t)), opx,
-	       (double)pair[0]/pair[1]);
+	       (double)pair[0]/pair[1] * (neg?-1:1));
 }
 
 static int usage(const char *cmd)
