@@ -63,6 +63,7 @@ contlog_decode(contlog_t operand, ufracpart_t frac[], int upscale)
 	  improper = neg;
      operand <<= 1;
 #endif
+     improper ^= zero;
      fracpart_t pair[] = {0, 1};
      for (int lo = 1, lobit = operand ? ffs(operand) - 1: REP_NBITS;
 	  !zero && lobit < REP_NBITS + 1; ) {
