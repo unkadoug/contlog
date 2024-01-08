@@ -217,7 +217,7 @@ contlog_encode_state_init(struct contlog_encode_state *ces, fracpart_t quad[])
      int shift = nbits - fls(mask) - 1;
      for (int i = 0; i < 4; ++i)
 	  quad[i] <<= shift;
-     ces->nbits = MAXBITS;
+     ces->nbits = 0;
      ces->lo = 0;
      ces->arg = 0;
 }
@@ -242,7 +242,7 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 	       quad[i] += quad[i^1];
 	       if (shift >= 0) {
 		    quad[i] -= quad[i^1] >> shift;
-		    if (MAXBITS != nbits + shift + 1)
+		    if (nbits != shift + 1)
 			 quad[i^1] /= 2;
 	       }
 	  }
@@ -262,7 +262,7 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
       */
      do {
 	  if (quad[lo^2] <= quad[lo^3] / 2) { /* result <= 1/2 */
-	       int shift = nbits;
+	       int shift = MAXBITS - nbits;
 	       if (-quad[lo] > 0) {		     /* result < 0 */
 		    if (-quad[lo] <= quad[lo^1] / 2) /* -1/2 <= result */
 			 shift = min(lgratio(quad[lo^1], -quad[lo]), shift);
@@ -275,7 +275,7 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 	       quad[lo] <<= shift;
 	       quad[lo^2] <<= shift;
 	       arg <<= shift;	/* result <<= shift */
-	       if ((nbits -= shift) == 0)
+	       if ((nbits += shift) == MAXBITS)
 		    break;
 	  }
 	  if (!(0 < quad[lo] &&				     /* 0 < result */
@@ -289,11 +289,11 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 	  quad[lo^3] -= quad[lo^2];
 	  arg = 2 * (arg - (lo&1)) + 1; /* result = (1 - result) / result */
 	  lo ^= 3;
-     } while (--nbits != 0);
+     } while (++nbits != MAXBITS);
      ces->lo = lo;
      ces->nbits = nbits;
      ces->arg = arg;
-     return (nbits == 0);
+     return (nbits == MAXBITS);
 }
 
 /*
@@ -558,7 +558,7 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
      }
      if (!zero)
 	  return (ces.arg);
-     return (contlog_encode_exact(ces.nbits, ces.lo&1, ces.arg, &quad[j]));
+     return (contlog_encode_exact(MAXBITS - ces.nbits, ces.lo&1, ces.arg, &quad[j]));
 
 }
 
@@ -721,7 +721,7 @@ contlog_sqrt_frac(ufracpart_t numer, ufracpart_t denom)
      fracpart_t quad[] = {2*numer, numer+denom, 1, 1};
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
-     ces.nbits -= shift;
+     ces.nbits += shift;
   
      int overflow = 0;
      int j = 0;
