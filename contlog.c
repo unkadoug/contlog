@@ -123,6 +123,23 @@ contlog_find_simplest(ufracpart_t bound[], int open, ufracpart_t frac[])
 }
 
 /*
+ * Swap a pair of consecutive values, negating one of them.
+ */
+static void
+contlog_swap_negate(int nbits, int lo, contlog_t arg, fracpart_t pair[])
+{
+     pair[lo] += pair[lo^1];
+     pair[lo^1] -= pair[lo];
+     pair[lo] += pair[lo^1];
+     if (arg != 0) {
+	  int shift = ffs(arg) - 1;
+	  pair[lo] -= pair[lo^1] >> shift;
+	  if (nbits != shift + 1)
+	       pair[lo^1] /= 2;
+     }
+}
+
+/*
  * For n >= d, compute the floor(log2(n/d)) with bit operations.
  */
 static int
@@ -146,15 +163,7 @@ contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
 {
      if (-pair[lo] >= 0) {
 	  /* result <= 0; flip to positive value */
-	  pair[lo] += pair[lo^1];
-	  pair[lo^1] -= pair[lo];
-	  pair[lo] += pair[lo^1];
-	  if (arg != 0) {
-	       int shift = ffs(arg) - 1;
-	       pair[lo] -= pair[lo^1] >> shift;
-	       if (nbits != shift + 1)
-		    pair[lo^1] /= 2;
-	  }
+	  contlog_swap_negate(nbits, lo, arg, pair);
 	  lo ^= 1;
      }
      if (pair[lo] > pair[lo^1]) {
@@ -235,17 +244,8 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
      contlog_t arg = ces->arg;
      if (-quad[lo^2] >= 0) {
 	  /* result <= 0, flip to positive value */
-	  for (int i = lo&1; i < 4; i += 2) {
-	       quad[i] += quad[i^1];
-	       quad[i^1] -= quad[i];
-	       quad[i] += quad[i^1];
-	       if (arg != 0) {
-		    int shift = ffs(arg) - 1;
-		    quad[i] -= quad[i^1] >> shift;
-		    if (nbits != shift + 1)
-			 quad[i^1] /= 2;
-	       }
-	  }
+	  contlog_swap_negate(nbits, lo&1, arg, &quad[0]);
+	  contlog_swap_negate(nbits, lo&1, arg, &quad[2]);
 	  lo ^= 3;
      }
 
