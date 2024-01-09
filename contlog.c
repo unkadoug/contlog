@@ -152,7 +152,7 @@ contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
 	  pair[lo] += pair[lo^1];
 	  if (shift >= 0) {
 	       pair[lo] -= pair[lo^1] >> shift;
-	       if (MAXBITS != nbits + shift + 1)
+	       if (nbits != shift + 1)
 		    pair[lo^1] /= 2;
 	  }
 	  lo ^= 1;
@@ -169,17 +169,17 @@ contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
      }
 
      do {
-	  int shift = nbits;
+	  int shift = MAXBITS - nbits;
 	  if (pair[lo] != 0)
 	       shift = min(lgratio(pair[lo^1], pair[lo]), shift);
 	  pair[lo] <<= shift;
 	  arg <<= shift;	/* result <<= shift */
-	  if ((nbits -= shift) == 0)
+	  if ((nbits += shift) == MAXBITS)
 	       break;
 	  pair[lo^1] -= pair[lo];
 	  arg = 2 * (arg - lo) + 1; /* result = (1 - result) / result */
 	  lo ^= 1;
-     } while (--nbits != 0);
+     } while (++nbits != MAXBITS);
      return (arg);
 }
 
@@ -195,7 +195,7 @@ contlog_encode_frac(fracpart_t pair[])
 	  pair[1] = -pair[1];
      }
 
-     return (contlog_encode_exact(MAXBITS, 0, 0, pair));
+     return (contlog_encode_exact(0, 0, 0, pair));
 }
 
 /*
@@ -558,7 +558,7 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
      }
      if (!zero)
 	  return (ces.arg);
-     return (contlog_encode_exact(MAXBITS - ces.nbits, ces.lo&1, ces.arg, &quad[j]));
+     return (contlog_encode_exact(ces.nbits, ces.lo&1, ces.arg, &quad[j]));
 
 }
 
