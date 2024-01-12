@@ -173,7 +173,7 @@ contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
 	       return (0);	/* avoids too-much bit shift */
 #endif
 	  if (MINVAL || pair[lo^1] != 0)
-	       arg = 2 * (arg - lo) + 1;	/* result = 1 / result */
+	       arg = 1;		/* result = 1 / result */
 	  lo ^= 1;
      }
 
@@ -252,7 +252,7 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
      if (quad[lo] >= quad[lo^1]) {
 	  /* result >= 1 */
 	  if (MINVAL || quad[lo^1] != 0)
-	       arg = 2 * (arg - (lo&1)) + 1; /* result = 1 / result */
+	       arg = 1;		/* result = 1 / result */
 	  lo ^= 3;
      }
 
