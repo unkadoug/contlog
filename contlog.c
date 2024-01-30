@@ -126,7 +126,7 @@ contlog_find_simplest(ufracpart_t bound[], int open, ufracpart_t frac[])
  * Swap a pair of consecutive values, negating one of them.
  */
 static void
-contlog_swap_negate(int nbits, int lo, contlog_t arg, fracpart_t pair[])
+contlog_swap_negate(int max_shift, int lo, contlog_t arg, fracpart_t pair[])
 {
      pair[lo] += pair[lo^1];
      pair[lo^1] -= pair[lo];
@@ -134,7 +134,7 @@ contlog_swap_negate(int nbits, int lo, contlog_t arg, fracpart_t pair[])
      if (arg != 0) {
 	  int shift = ffs(arg) - 1;
 	  pair[lo] -= pair[lo^1] >> shift;
-	  if (nbits != shift + 1)
+	  if (MAXBITS - max_shift != shift + 1)
 	       pair[lo^1] /= 2;
      }
 }
@@ -161,9 +161,11 @@ min(int a, int b)
 static contlog_t
 contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
 {
+     int max_shift = MAXBITS - nbits;
+
      if (-pair[lo] >= 0) {
 	  /* result <= 0; flip to positive value */
-	  contlog_swap_negate(nbits, lo, arg, pair);
+	  contlog_swap_negate(max_shift, lo, arg, pair);
 	  lo ^= 1;
      }
      if (pair[lo] > pair[lo^1]) {
@@ -178,17 +180,17 @@ contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
      }
 
      do {
-	  int shift = MAXBITS - nbits;
+	  int shift = max_shift;
 	  if (pair[lo] != 0)
 	       shift = min(lgratio(pair[lo^1], pair[lo]), shift);
 	  pair[lo] <<= shift;
 	  arg <<= shift;	/* result <<= shift */
-	  if ((nbits += shift) == MAXBITS)
+	  if ((max_shift -= shift) == 0)
 	       break;
 	  pair[lo^1] -= pair[lo];
 	  arg = 2 * (arg - lo) + 1; /* result = (1 - result) / result */
 	  lo ^= 1;
-     } while (++nbits != MAXBITS);
+     } while (--max_shift != 0);
      return (arg);
 }
 
@@ -239,13 +241,13 @@ contlog_encode_state_init(struct contlog_encode_state *ces, fracpart_t quad[])
 static int
 contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 {
-     int nbits = ces->nbits;
+     int max_shift = MAXBITS - ces->nbits;
      int lo = ces->lo;
      contlog_t arg = ces->arg;
      if (-quad[lo^2] >= 0) {
 	  /* result <= 0, flip to positive value */
-	  contlog_swap_negate(nbits, lo&1, arg, &quad[0]);
-	  contlog_swap_negate(nbits, lo&1, arg, &quad[2]);
+	  contlog_swap_negate(max_shift, lo&1, arg, &quad[0]);
+	  contlog_swap_negate(max_shift, lo&1, arg, &quad[2]);
 	  lo ^= 3;
      }
 
@@ -262,7 +264,7 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
       */
      do {
 	  if (quad[lo^2] <= quad[lo^3] / 2) { /* result <= 1/2 */
-	       int shift = MAXBITS - nbits;
+	       int shift = max_shift;
 	       if (-quad[lo] > 0) {		     /* result < 0 */
 		    if (-quad[lo] <= quad[lo^1] / 2) /* -1/2 <= result */
 			 shift = min(lgratio(quad[lo^1], -quad[lo]), shift);
@@ -275,7 +277,7 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 	       quad[lo] <<= shift;
 	       quad[lo^2] <<= shift;
 	       arg <<= shift;	/* result <<= shift */
-	       if ((nbits += shift) == MAXBITS)
+	       if ((max_shift -= shift) == 0)
 		    break;
 	  }
 	  if (!(0 < quad[lo] &&				     /* 0 < result */
@@ -289,11 +291,11 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 	  quad[lo^3] -= quad[lo^2];
 	  arg = 2 * (arg - (lo&1)) + 1; /* result = (1 - result) / result */
 	  lo ^= 3;
-     } while (++nbits != MAXBITS);
+     } while (--max_shift != 0);
      ces->lo = lo;
-     ces->nbits = nbits;
+     ces->nbits = MAXBITS - max_shift;
      ces->arg = arg;
-     return (nbits == MAXBITS);
+     return (max_shift == 0);
 }
 
 /*
