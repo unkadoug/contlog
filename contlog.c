@@ -4,7 +4,7 @@
 #include "contlog.h"
 #define REP_NBITS (8*sizeof(CONTLOG_BASE))
 #define SGNBIT_POS (REP_NBITS - 1)
-#define MAXBITS (REP_NBITS - CONTLOG_SIGNED - CONTLOG_UNBOUNDED + 1)
+#define SKIP_BITS (CONTLOG_SIGNED + CONTLOG_UNBOUNDED)
 #define MINVAL (CONTLOG_SIGNED ? -((CONTLOG_BASE)1 << SGNBIT_POS) : 0)
 
 #define ffs(X) _Generic((X),			\
@@ -134,7 +134,7 @@ contlog_swap_negate(int max_shift, int lo, contlog_t arg, fracpart_t pair[])
      if (arg != 0) {
 	  int shift = ffs(arg) - 1;
 	  pair[lo] -= pair[lo^1] >> shift;
-	  if (MAXBITS - max_shift != shift + 1)
+	  if (REP_NBITS + 1 - SKIP_BITS - max_shift != shift + 1)
 	       pair[lo^1] /= 2;
      }
 }
@@ -159,10 +159,8 @@ min(int a, int b)
 
 /* Complete the contlog binary encoding of the fraction in pair[]. */
 static contlog_t
-contlog_encode_exact(int nbits, int lo, contlog_t arg, fracpart_t pair[])
+contlog_encode_exact(int max_shift, int lo, contlog_t arg, fracpart_t pair[])
 {
-     int max_shift = MAXBITS - nbits;
-
      if (-pair[lo] >= 0) {
 	  /* result <= 0; flip to positive value */
 	  contlog_swap_negate(max_shift, lo, arg, pair);
@@ -206,7 +204,7 @@ contlog_encode_frac(fracpart_t pair[])
 	  pair[1] = -pair[1];
      }
 
-     return (contlog_encode_exact(0, 0, 0, pair));
+     return (contlog_encode_exact(REP_NBITS + 1 - SKIP_BITS, 0, 0, pair));
 }
 
 /*
@@ -214,7 +212,7 @@ contlog_encode_frac(fracpart_t pair[])
  */
 struct contlog_encode_state {
      contlog_t arg;		/* bits so far */
-     int nbits;			/* # of bits to go */
+     int max_shift;		/* # left shifts of arg remaining */
      int lo;			/* position of numerator of lower bound */
 };
 
@@ -228,7 +226,7 @@ contlog_encode_state_init(struct contlog_encode_state *ces, fracpart_t quad[])
      int shift = nbits - fls(mask) - 1;
      for (int i = 0; i < 4; ++i)
 	  quad[i] <<= shift;
-     ces->nbits = 0;
+     ces->max_shift = REP_NBITS + 1 - SKIP_BITS;
      ces->lo = 0;
      ces->arg = 0;
 }
@@ -241,7 +239,7 @@ contlog_encode_state_init(struct contlog_encode_state *ces, fracpart_t quad[])
 static int
 contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 {
-     int max_shift = MAXBITS - ces->nbits;
+     int max_shift = ces->max_shift;
      int lo = ces->lo;
      contlog_t arg = ces->arg;
      if (-quad[lo^2] >= 0) {
@@ -293,7 +291,7 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 	  lo ^= 3;
      } while (--max_shift != 0);
      ces->lo = lo;
-     ces->nbits = MAXBITS - max_shift;
+     ces->max_shift = max_shift;
      ces->arg = arg;
      return (max_shift == 0);
 }
@@ -548,7 +546,7 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
      }
      if (!zero)
 	  return (ces.arg);
-     return (contlog_encode_exact(ces.nbits, ces.lo&1, ces.arg, &quad[j]));
+     return (contlog_encode_exact(ces.max_shift, ces.lo&1, ces.arg, &quad[j]));
 
 }
 
@@ -711,7 +709,7 @@ contlog_sqrt_frac(ufracpart_t numer, ufracpart_t denom)
      fracpart_t quad[] = {2*numer, numer+denom, 1, 1};
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
-     ces.nbits += shift;
+     ces.max_shift -= shift;
   
      int overflow = 0;
      int j = 0;
