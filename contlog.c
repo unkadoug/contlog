@@ -145,6 +145,8 @@ contlog_swap_negate(int max_shift, int lo, contlog_t arg, fracpart_t pair[])
 static int
 lgratio(fracpart_t n, fracpart_t d)
 {
+     if (n < d)
+	  return (0);
      int lg = fls(n) - fls(d);
      n -= d << lg;
      n >>= 8 * sizeof(n) - 1;
@@ -177,7 +179,7 @@ contlog_encode_exact(int max_shift, int lo, contlog_t arg, fracpart_t pair[])
 	  lo ^= 1;
      }
 
-     do {
+     for (;;) {
 	  int shift = max_shift;
 	  if (pair[lo] != 0)
 	       shift = min(lgratio(pair[lo^1], pair[lo]), shift);
@@ -186,9 +188,10 @@ contlog_encode_exact(int max_shift, int lo, contlog_t arg, fracpart_t pair[])
 	  if ((max_shift -= shift) == 0)
 	       break;
 	  pair[lo^1] -= pair[lo];
-	  arg = 2 * (arg - lo) + 1; /* result = (1 - result) / result */
+	  arg = 2 * arg + (lo? -1: 1); /* result = (1 - result) / result */
 	  lo ^= 1;
-     } while (--max_shift != 0);
+	  --max_shift;
+     }
      return (arg);
 }
 
@@ -260,36 +263,33 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
       * (quad[lo]/quad[lo^1]) and upper (quad[lo^2]/quad[lo^3]) bound ratios
       * have been pushed too far apart.
       */
-     do {
-	  if (quad[lo^2] <= quad[lo^3] / 2) { /* result <= 1/2 */
-	       int shift = max_shift;
-	       if (-quad[lo] > 0) {		     /* result < 0 */
-		    if (-quad[lo] <= quad[lo^1] / 2) /* -1/2 <= result */
-			 shift = min(lgratio(quad[lo^1], -quad[lo]), shift);
-		    else
-			 break;
-	       }
-	       /* -1/2 <= result <= 1/2 */
-	       if (quad[lo^2] > 0)
-		    shift = min(lgratio(quad[lo^3], quad[lo^2]), shift);
-	       quad[lo] <<= shift;
-	       quad[lo^2] <<= shift;
-	       arg <<= shift;	/* result <<= shift */
-	       if ((max_shift -= shift) == 0)
-		    break;
-	  }
-	  if (!(0 < quad[lo] &&				     /* 0 < result */
-		quad[lo^2] / 2 < quad[lo^3] &&		     /* result < 2/1 */
-		(quad[lo^1] - quad[lo]) / 2 < quad[lo] &&    /* 1/3 < result */
-		(quad[lo^1] / 2 < quad[lo] ||		     /* 1/2 < result */
-		 quad[lo^2] / 2 < quad[lo^3] - quad[lo^2]))) /* result < 2/3 */
-	       break;
+     for (;;) {
+	  /* Shift 'result' up without pushing its bounds outside [-1/2, 1/2] */
+	  int shift = max_shift;
+	  if (-quad[lo] > 0)
+	       shift = min(lgratio(quad[lo^1], -quad[lo]), shift);
+	  if (quad[lo^2] > 0)
+	       shift = min(lgratio(quad[lo^3], quad[lo^2]), shift);
+	  quad[lo] <<= shift;
+	  quad[lo^2] <<= shift;
+	  arg <<= shift;	/* result <<= shift */
+
+	  if ((max_shift -= shift) == 0 || /* finished */
+	      0 >= quad[lo] ||		   /* result could be negative. */
+	      ((quad[lo^1] - quad[lo] >= quad[lo] ||	     /* result not in */
+		-quad[lo^3] >= quad[lo^3] - quad[lo^2]) &&   /* (1/2, 2/1). */
+	       ((quad[lo^1] - quad[lo]) / 2 >= quad[lo] ||   /* result not in */
+		quad[lo^2] / 2 >= quad[lo^3] - quad[lo^2]))) /* (1/3, 2/3). */
+		  break;
+
 	  /* 1/2 < result < 2/1, or 1/3 < result < 2/3 */
 	  quad[lo^1] -= quad[lo];
 	  quad[lo^3] -= quad[lo^2];
-	  arg = 2 * (arg - (lo&1)) + 1; /* result = (1 - result) / result */
+	  arg = 2 * arg + ((lo&1)? -1: 1); /* result = (1 - result) / result */
 	  lo ^= 3;
-     } while (--max_shift != 0);
+	  /* -1/2 < result < 1, or 1/2 < result < 2/1 */
+	  --max_shift;
+     }
      ces->lo = lo;
      ces->max_shift = max_shift;
      ces->arg = arg;
