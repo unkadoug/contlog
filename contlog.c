@@ -490,10 +490,8 @@ static contlog_t
 contlog_arith(contlog_t operand, fracpart_t quad[])
 {
      int j = 0;
-     int neg = 0;
 #if (CONTLOG_SIGNED)
      if (operand >> SGNBIT_POS) {
-	  neg = 1;
 	  for (int i = 0; i < 2; ++i) {
 	       quad[i] -= quad[i^2];
 	       quad[i^2] += quad[i];
@@ -509,11 +507,11 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
      if (operand >> SGNBIT_POS) {
 	  j ^= 2;
 	  operand = -operand;
-     } else if (operand == 0 && neg)
-	  j ^= 2;
+     } else if (operand == 0)
+	  j = 0;
      operand <<= 1;
 #else
-     zero &= !neg;
+     zero &= j == 0;
 #endif
 
      struct contlog_encode_state ces;
