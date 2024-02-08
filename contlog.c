@@ -297,6 +297,86 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 }
 
 /*
+ * Compute the overflow (0 or 1) that resulted when two values were added to
+ * produce a sum.
+ */
+static int
+add_overflow(fracpart_t add1, fracpart_t add2, fracpart_t sum)
+{
+     return (1 & (((add1 & add2) |
+		   (add1 & ~sum) |
+		   (add2 & ~sum)) >> SGNBIT_POS));
+}
+
+/*
+ * Compute (x1 >> overflow) + x2, capturing numerical overflow.
+ */
+static void
+oversum(fracpart_t sum[], int overflow,
+	fracpart_t x1, fracpart_t x2)
+{
+     x1 >>= overflow;
+     sum[1] = x1 + x2;
+     sum[0] = (x1 >> SGNBIT_POS) + (x2 >> SGNBIT_POS) +
+	  add_overflow(x1, x2, sum[1]);
+}
+
+/*
+ * Compute the high-order part of the product of a and b, where 'a*b' computes
+ * the low-order part.
+ */
+static fracpart_t
+hiprod(fracpart_t a, fracpart_t b)
+{
+     const unsigned int halfbits = REP_NBITS / 2;
+     const fracpart_t halfmask = ((fracpart_t)1 << halfbits) - 1;
+     fracpart_t a_lo = a & halfmask;
+     fracpart_t a_hi = a >> halfbits;
+     fracpart_t b_lo = b & halfmask;
+     fracpart_t b_hi = b >> halfbits;
+     fracpart_t hilo = (((a_lo * b_lo) >> halfbits) & halfmask) + a_hi * b_lo;
+     fracpart_t lohi = (hilo & halfmask) + a_lo * b_hi;
+     return ((hilo >> halfbits) + (lohi >> halfbits) + a_hi * b_hi);
+}
+
+/*
+ * Compute x1*y1 + x2*y2, capturing numerical overflow.
+ */
+static void
+dotprod(fracpart_t sum[],
+	fracpart_t x1, fracpart_t x2,
+	fracpart_t y1, fracpart_t y2)
+{
+     fracpart_t prod1 = x1 * y1;
+     fracpart_t prod2 = x2 * y2;
+     sum[1] = prod1 + prod2;
+     sum[0] = hiprod(x1, y1) + hiprod(x2, y2) +
+	  add_overflow(prod1, prod2, sum[1]);
+}
+
+/*
+ * Compute (x1*y1 >> overflow) + x2*y2, capturing numerical overflow.
+ */
+static void
+dotprod2(fracpart_t sum[], int overflow,
+	fracpart_t x1, fracpart_t x2,
+	fracpart_t y1, fracpart_t y2)
+{
+     fracpart_t prod1 = x1 * y1;
+     fracpart_t prod2 = x2 * y2;
+     sum[0] = hiprod(x1, y1);
+     if (overflow > 0) {
+	  int backflow = REP_NBITS - overflow;
+	  prod1 >>= overflow;
+	  prod1 &= ((fracpart_t)1 << backflow) - 1;
+	  prod1 |= sum[0] << backflow;
+	  sum[0] >>= overflow;
+     }
+     sum[1] = prod1 + prod2;
+     sum[0] += hiprod(x2, y2) + add_overflow(prod1, prod2, sum[1]);
+}
+
+/*
  * Find how much the largest of the values stored in pairs in sum[] overflowed
  * into the higher-order member of the pair.  Shift all the values right by that
  * amount and copy them back into result.  Return the overflow amount.
@@ -319,31 +399,6 @@ pack(int n, fracpart_t result[], fracpart_t sum[])
 	  result[i] = (sum[2*i] << 1 << (SGNBIT_POS - overflow)) |
 	       ((sum[2*i+1] >> overflow) & mask);
      return (overflow);
-}
-
-/*
- * Compute the overflow (0 or 1) that resulted when two values were added to
- * produce a sum.
- */
-static int
-add_overflow(fracpart_t add1, fracpart_t add2, fracpart_t sum)
-{
-     return (1 & (((add1 & add2) |
-		   (add1 & ~sum) |
-		   (add2 & ~sum)) >> SGNBIT_POS));
-}
-
-/*
- * Compute (x1 >> overflow) + x2, capturing numerical overflow.
- */
-static void
-oversum(fracpart_t sum[], int overflow,
-	fracpart_t x1, fracpart_t x2)
-{
-     int nbits = SGNBIT_POS;
-     x1 >>= overflow;
-     sum[0] = (x1 >> nbits) + (x2 >> nbits) + add_overflow(x1, x2, x1 + x2);
-     sum[1] = x1 + x2;
 }
 
 static void
@@ -625,61 +680,6 @@ contlog_harmsum(contlog_t op0, contlog_t op1)
 	  frac[0] = -frac[0];
      fracpart_t quad[] = {0, frac[0], frac[0], frac[1]};
      return (contlog_arith(op0, quad));
-}
-
-/*
- * Compute the high-order part of the product of a and b, where 'a*b' computes
- * the low-order part.
- */
-static fracpart_t
-hiprod(fracpart_t a, fracpart_t b)
-{
-     const unsigned int halfbits = REP_NBITS / 2;
-     const fracpart_t halfmask = ((fracpart_t)1 << halfbits) - 1;
-     fracpart_t a_lo = a & halfmask;
-     fracpart_t a_hi = a >> halfbits;
-     fracpart_t b_lo = b & halfmask;
-     fracpart_t b_hi = b >> halfbits;
-     fracpart_t hilo = (((a_lo * b_lo) >> halfbits) & halfmask) + a_hi * b_lo;
-     fracpart_t lohi = (hilo & halfmask) + a_lo * b_hi;
-     return ((hilo >> halfbits) + (lohi >> halfbits) + a_hi * b_hi);
-}
-
-/*
- * Compute x1*y1 + x2*y2, capturing numerical overflow.
- */
-static void
-dotprod(fracpart_t sum[],
-	fracpart_t x1, fracpart_t x2,
-	fracpart_t y1, fracpart_t y2)
-{
-     fracpart_t prod1 = x1 * y1;
-     fracpart_t prod2 = x2 * y2;
-     sum[0] = hiprod(x1, y1) + hiprod(x2, y2) +
-	  add_overflow(prod1, prod2, prod1 + prod2);
-     sum[1] = prod1 + prod2;
-}
-
-/*
- * Compute (x1*y1 >> overflow) + x2*y2, capturing numerical overflow.
- */
-static void
-dotprod2(fracpart_t sum[], int overflow,
-	fracpart_t x1, fracpart_t x2,
-	fracpart_t y1, fracpart_t y2)
-{
-     fracpart_t prod1 = x1 * y1;
-     fracpart_t prod2 = x2 * y2;
-     sum[0] = hiprod(x1, y1);
-     if (overflow > 0) {
-	  int backflow = REP_NBITS - overflow;
-	  prod1 >>= overflow;
-	  prod1 &= ((fracpart_t)1 << backflow) - 1;
-	  prod1 |= sum[0] << backflow;
-	  sum[0] >>= overflow;
-     }
-     sum[0] += hiprod(x2, y2) + add_overflow(prod1, prod2, prod1 + prod2);
-     sum[1] = prod1 + prod2;
 }
 
 /* Compute sqrt(numer/denom) */
