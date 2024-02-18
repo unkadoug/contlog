@@ -276,9 +276,8 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 
 	  if ((max_shift -= shift) == 0 || /* finished */
 	      0 >= quad[lo] ||		   /* result could be negative. */
-	      ((quad[lo^1] - quad[lo] >= quad[lo] ||	     /* result not in */
-		-quad[lo^3] >= quad[lo^3] - quad[lo^2]) &&   /* (1/2, 2/1). */
-	       ((quad[lo^1] - quad[lo]) / 2 >= quad[lo] ||   /* result not in */
+	      (quad[lo^1] - quad[lo] >= quad[lo] && /* or could be < 1/2. */
+	       ((quad[lo^1] - quad[lo]) / 2 >= quad[lo] ||   /* or not in */
 		quad[lo^2] / 2 >= quad[lo^3] - quad[lo^2]))) /* (1/3, 2/3). */
 		  break;
 
