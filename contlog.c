@@ -252,13 +252,6 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 	  lo ^= 3;
      }
 
-     if (quad[lo] >= quad[lo^1]) {
-	  /* result >= 1 */
-	  if (MINVAL || quad[lo^1] != 0)
-	       arg = 1;		/* result = 1 / result */
-	  lo ^= 3;
-     }
-
      /* Extract bits into arg until either arg is filled, or lower
       * (quad[lo]/quad[lo^1]) and upper (quad[lo^2]/quad[lo^3]) bound ratios
       * have been pushed too far apart.
