@@ -39,7 +39,7 @@ contlog_t contlog_mult(contlog_t op0, contlog_t op1);
 contlog_t contlog_compmult(contlog_t op0, contlog_t op1);
 contlog_t contlog_div(contlog_t op0, contlog_t op1);
 contlog_t contlog_atnsum(contlog_t op0, contlog_t op1);
-contlog_t contlog_harmsum(contlog_t op0, contlog_t op1);
+contlog_t contlog_parallel(contlog_t op0, contlog_t op1);
 contlog_t contlog_sqrt(contlog_t operand);
 contlog_t contlog_sinarctan(contlog_t operand);
 contlog_t contlog_hypot(contlog_t op0, contlog_t op1);

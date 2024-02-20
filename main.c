@@ -48,7 +48,7 @@ static int usage(const char *cmd)
 	       "'*' (product x*y)\n"
 	       "'~' (product with complement x*(1-y)\n"
 	       "'/' (ratio)\n"
-	       "'H' (harmonic sum 1/(1/x + 1/y))\n"
+	       "'|' (parallel 1/(1/x + 1/y))\n"
 	       "'T' (arctangent sum (x+y)/(1-x*y))\n"
 	       "'@' (pythagorean sum sqrt(x*x + y*y))\n"
 	       "and where unary ops are\n"
@@ -171,9 +171,9 @@ int main(int argc, char *argv[])
 		print_frac(contlog_atnsum(a, b));
 		break;
 
-	case 'H':
+	case '|':
 		printf("xy/(x+y): ");
-		print_frac(contlog_harmsum(a, b));
+		print_frac(contlog_parallel(a, b));
 		break;
 
 	case '@':

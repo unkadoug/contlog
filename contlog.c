@@ -664,7 +664,7 @@ contlog_atnsum(contlog_t op0, contlog_t op1)
 
 /* Compute (x*y)/(x+y) */
 contlog_t
-contlog_harmsum(contlog_t op0, contlog_t op1)
+contlog_parallel(contlog_t op0, contlog_t op1)
 {
      ufracpart_t frac[2];
      int neg = contlog_decode(op1, frac, 1);
