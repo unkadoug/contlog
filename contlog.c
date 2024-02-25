@@ -792,25 +792,26 @@ contlog_hypot(contlog_t op0, contlog_t op1)
 static contlog_t
 contlog_log1p_frac(fracpart_t numer, fracpart_t denom)
 {
-     fracpart_t n_11234 = numer;
-     fracpart_t n_12345 = numer;
-     fracpart_t d_13579 = denom;
-     fracpart_t quad[] = {0, 1, 1, 0};
+     fracpart_t int_numer = numer;
+     fracpart_t odd_denom = 3 * denom;
+     fracpart_t quad[] = {0, 1, numer, denom};
+     int overflow = 0;
+     int j = 0;
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
      do {
 	  /* Update quad to shrink range containing the result */
-	  fracpart_t sum[8];
-	  for (int i = 0; i < 2; ++i) {
-	       int j = i ^ 2;
-	       dotprod(&sum[2*i], quad[i], quad[j],
-		       n_12345 + 2*d_13579, 2*n_11234);
-	       dotprod(&sum[2*j], quad[i], quad[j], d_13579, n_11234);
+	  fracpart_t sum[4];
+	  fracpart_t s1 = int_numer, s2 = 2;
+	  if (j != 0) {
+	       int_numer += numer;
+	       s2 = odd_denom;
+	       odd_denom += 2 * denom;
 	  }
-	  (void)pack(4, quad, sum);
-	  n_11234 = n_12345;
-	  n_12345 += numer;
-	  d_13579 += 2 * denom;
+	  dotprod2(&sum[0], overflow, quad[j^0], quad[j^2], s1, s2);
+	  dotprod2(&sum[2], overflow, quad[j^1], quad[j^3], s1, s2);
+	  overflow = pack(2, &quad[j], sum);
+	  j ^= 2;
      } while (!contlog_encode_bounds(&ces, quad));
      return (ces.arg);
 }
