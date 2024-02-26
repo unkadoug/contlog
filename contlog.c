@@ -378,6 +378,19 @@ pack(fracpart_t result[], fracpart_t sum[])
      return (overflow);
 }
 
+/*
+ * Replace x = column j with ((a*x)>>overflow) + b*y,
+ * Return new overflow.
+ */
+static int
+axpby(int overflow, int j, fracpart_t quad[], fracpart_t a, fracpart_t b)
+{
+     fracpart_t sum[4];
+     dotprod(&sum[0], overflow, quad[j^0], quad[j^2], a, b);
+     dotprod(&sum[2], overflow, quad[j^1], quad[j^3], a, b);
+     return (pack(&quad[j], sum));
+}
+
 static void
 debug_print(contlog_t operand, fracpart_t quad[], int j)
 {
@@ -681,20 +694,11 @@ contlog_sqrt_frac(ufracpart_t numer, ufracpart_t denom)
      int j = 0;
      for (;;) {
 	  /* Update quad to shrink range containing the result */
-	  fracpart_t sum[4];
 	  j ^= 2;
-	  dotprod(&sum[0], overflow,
-		   quad[j^0], quad[j^2], denom-numer, 2);
-	  dotprod(&sum[2], overflow,
-		   quad[j^1], quad[j^3], denom-numer, 2);
-	  overflow = pack(&quad[j], sum);
+	  overflow = axpby(overflow, j, quad, denom-numer, 2);
 	  if (contlog_encode_bounds(&ces, quad))
 	       break;
-	  dotprod(&sum[0], 0,
-		   quad[j^0], quad[j^2], numer, 0);
-	  dotprod(&sum[2], 0,
-		   quad[j^1], quad[j^3], numer, 0);
-	  overflow += pack(&quad[j], sum);
+	  overflow += axpby(0, j, quad, numer, 0);
      }
      return (ces.arg);
 }
@@ -735,17 +739,8 @@ contlog_sinarctan(contlog_t operand)
      int j = 0;
      do {
 	  /* Update quad to shrink range containing the result */
-	  fracpart_t sum[4];
-	  dotprod(&sum[0], overflow,
-		   quad[j^0], quad[j^2], numer, 0);
-	  dotprod(&sum[2], overflow,
-		   quad[j^1], quad[j^3], numer, 0);
-	  overflow = pack(&quad[j], sum);
-	  dotprod(&sum[0], 0,
-		   quad[j^0], quad[j^2], numer, 2*denom);
-	  dotprod(&sum[2], 0,
-		   quad[j^1], quad[j^3], numer, 2*denom);
-	  overflow += pack(&quad[j], sum);
+	  overflow = axpby(overflow, j, quad, numer, 0);
+	  overflow += axpby(0, j, quad, numer, 2*denom);
 	  j ^= 2;
      } while (!contlog_encode_bounds(&ces, quad));
      return (ces.arg);
@@ -786,16 +781,13 @@ contlog_log1p_frac(fracpart_t numer, fracpart_t denom)
      contlog_encode_state_init(&ces, quad);
      do {
 	  /* Update quad to shrink range containing the result */
-	  fracpart_t sum[4];
 	  fracpart_t s1 = int_numer, s2 = 2;
 	  if (j != 0) {
 	       int_numer += numer;
 	       s2 = odd_denom;
 	       odd_denom += 2 * denom;
 	  }
-	  dotprod(&sum[0], overflow, quad[j^0], quad[j^2], s1, s2);
-	  dotprod(&sum[2], overflow, quad[j^1], quad[j^3], s1, s2);
-	  overflow = pack(&quad[j], sum);
+	  overflow = axpby(overflow, j, quad, s1, s2);
 	  j ^= 2;
      } while (!contlog_encode_bounds(&ces, quad));
      return (ces.arg);
@@ -861,7 +853,6 @@ contlog_expm(contlog_t operand)
      contlog_encode_state_init(&ces, quad);
      do {
 	  /* Update quad to shrink range containing the result */
-	  fracpart_t sum[4];
 	  fracpart_t s1 = numer, s2 = odd_denom;
 	  if (j != 0) {
 	       s1 = -s1;
@@ -869,9 +860,7 @@ contlog_expm(contlog_t operand)
 	       odd_denom += 2 * denom;
 	       ces.lo ^= 2;
 	  }
-	  dotprod(&sum[0], overflow, quad[j^0], quad[j^2], s1, s2);
-	  dotprod(&sum[2], overflow, quad[j^1], quad[j^3], s1, s2);
-	  overflow = pack(&quad[j], sum);
+	  overflow = axpby(overflow, j, quad, s1, s2);
 	  j ^= 2;
      } while (j != 0 || !contlog_encode_bounds(&ces, quad));
      if (neg)
@@ -900,9 +889,7 @@ contlog_cssqrt(contlog_t operand, int n)
 	  fracpart_t sum[4];
 	  fracpart_t H = n++;
 	  H *= n++;
-	  dotprod(&sum[0], overflow, quad[j^0], quad[j^2], L*numer, H);
-	  dotprod(&sum[2], overflow, quad[j^1], quad[j^3], L*numer, H);
-	  overflow = pack(&quad[j], sum);
+	  overflow = axpby(overflow, j, quad, L*numer, H);
 	  L = H;
 	  j ^= 2;
 	  dotprod(&sum[0], overflow, quad[j^0], quad[j^2], -numer, denom);
