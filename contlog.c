@@ -868,22 +868,27 @@ contlog_expm(contlog_t operand)
      fracpart_t denom = frac[1];
      if (numer / (SGNBIT_POS + 1) >= denom)
 	  return (neg? 0 : MINVAL);
-     fracpart_t d_13579 = denom;
+     fracpart_t odd_denom = denom;
      fracpart_t quad[] = {0, 1, 1, 1};
+     int overflow = 0;
+     int j = 0;
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
      do {
 	  /* Update quad to shrink range containing the result */
-	  fracpart_t sum[8];
-	  for (int i = 0; i < 2; ++i) {
-	       int j = i ^ 2;
-	       dotprod(&sum[2*i], quad[i], quad[j], numer, d_13579);
-	       dotprod(&sum[2*j], quad[i], quad[j], 2*numer, 2*d_13579 - numer);
+	  fracpart_t sum[4];
+	  fracpart_t s1 = numer, s2 = odd_denom;
+	  if (j != 0) {
+	       s1 = -s1;
+	       s2 = 2;
+	       odd_denom += 2 * denom;
+	       ces.lo ^= 2;
 	  }
-	  (void)pack(4, quad, sum);
-	  d_13579 += 2 * denom;
-	  ces.lo ^= 2;
-     } while (!contlog_encode_bounds(&ces, quad));
+	  dotprod2(&sum[0], overflow, quad[j^0], quad[j^2], s1, s2);
+	  dotprod2(&sum[2], overflow, quad[j^1], quad[j^3], s1, s2);
+	  overflow = pack(2, &quad[j], sum);
+	  j ^= 2;
+     } while (j != 0 || !contlog_encode_bounds(&ces, quad));
      if (neg)
 	  ces.arg = MINVAL - ces.arg;
      return (ces.arg);
