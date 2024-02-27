@@ -692,14 +692,12 @@ contlog_sqrt_frac(ufracpart_t numer, ufracpart_t denom)
   
      int overflow = 0;
      int j = 0;
-     for (;;) {
+     do {
 	  /* Update quad to shrink range containing the result */
 	  j ^= 2;
 	  overflow = axpby(overflow, j, quad, denom-numer, 2);
-	  if (contlog_encode_bounds(&ces, quad))
-	       break;
 	  overflow += axpby(0, j, quad, numer, 0);
-     }
+     } while (!contlog_encode_bounds(&ces, quad));
      return (ces.arg);
 }
 
