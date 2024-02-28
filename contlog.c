@@ -884,15 +884,15 @@ contlog_cssqrt(contlog_t operand, int n)
      int j = 0;
      do {
 	  /* Update quad to shrink range containing the result */
-	  fracpart_t sum[4];
 	  fracpart_t H = n++;
 	  H *= n++;
+	  fracpart_t sum[4];
 	  overflow = axpby(overflow, j, quad, L*numer, H);
+	  dotprod(&sum[0], overflow, quad[j^2], quad[j^0], -numer, denom);
+	  dotprod(&sum[2], overflow, quad[j^3], quad[j^1], -numer, denom);
+	  overflow += pack(&quad[j], sum);
 	  L = H;
 	  j ^= 2;
-	  dotprod(&sum[0], overflow, quad[j^0], quad[j^2], -numer, denom);
-	  dotprod(&sum[2], overflow, quad[j^1], quad[j^3], -numer, denom);
-	  overflow += pack(&quad[j^2], sum);
      } while (!contlog_encode_bounds(&ces, quad));
      return (ces.arg);
 }
