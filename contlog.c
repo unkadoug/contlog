@@ -534,7 +534,7 @@ contlog_decode_frac(contlog_t operand, ufracpart_t pair[])
 static contlog_t
 contlog_arith(contlog_t operand, fracpart_t quad[])
 {
-     int j = 0;
+     int j = 2;
 #if (CONTLOG_SIGNED)
      if (operand >> SGNBIT_POS) {
 	  for (int i = 0; i < 2; ++i) {
@@ -552,35 +552,35 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
 	  j ^= 2;
 	  operand = -operand;
      } else if (operand == 0)
-	  j = 0;
+	  j = 2;
      operand <<= 1;
 #endif
 
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
      int overflow = 0;
-     while (operand != 0 || j != 0) {
+     while (operand != 0 || j == 0) {
 	  /* Find the leftmost set bit position of operand and shift the bit
 	   * out. */
 	  if (operand != 0) {
 	       int shift = REP_NBITS - fls(operand);
 	       operand <<= shift;
 	       operand = -2 * operand;
-	       if (operand == 0 && j != 0)
+	       if (operand == 0 && j == 0)
 		    ++shift;
 	       overflow += shift;
 	  }
 
 	  /* Update quad to shrink range containing the result */
-	  j ^= 2;
 	  fracpart_t sum[4];
 	  oversum(&sum[0], overflow, quad[j^0], quad[j^2]);
 	  oversum(&sum[2], overflow, quad[j^1], quad[j^3]);
 	  overflow = pack(&quad[j], sum);
 	  if (contlog_encode_bounds(&ces, quad))
 	       return (ces.arg);
+	  j ^= 2;
      }
-     return (contlog_encode_exact(ces.max_shift, ces.lo&1, ces.arg, &quad[j]));
+     return (contlog_encode_exact(ces.max_shift, ces.lo&1, ces.arg, quad));
 
 }
 
