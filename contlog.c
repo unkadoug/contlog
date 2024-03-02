@@ -4,7 +4,7 @@
 #include "contlog.h"
 #define REP_NBITS (8*sizeof(CONTLOG_BASE))
 #define SGNBIT_POS (REP_NBITS - 1)
-#define SKIP_BITS (CONTLOG_SIGNED + CONTLOG_UNBOUNDED)
+#define MAGN_BITS (REP_NBITS + 1 - CONTLOG_SIGNED - CONTLOG_UNBOUNDED)
 #define MINVAL (CONTLOG_SIGNED ? -((CONTLOG_BASE)1 << SGNBIT_POS) : 0)
 
 #define ffs(X) _Generic((X),			\
@@ -128,7 +128,7 @@ contlog_swap_negate(int max_shift, int lo, contlog_t arg, fracpart_t pair[])
      if (arg != 0) {
 	  int shift = ffs(arg) - 1;
 	  pair[lo] -= pair[lo^1] >> shift;
-	  if (REP_NBITS + 1 - SKIP_BITS - max_shift != shift + 1)
+	  if (MAGN_BITS - max_shift != shift + 1)
 	       pair[lo^1] /= 2;
      }
 }
@@ -201,7 +201,7 @@ contlog_encode_frac(fracpart_t pair[])
 	  pair[1] = -pair[1];
      }
 
-     return (contlog_encode_exact(REP_NBITS + 1 - SKIP_BITS, 0, 0, pair));
+     return (contlog_encode_exact(MAGN_BITS, 0, 0, pair));
 }
 
 /*
@@ -223,7 +223,7 @@ contlog_encode_state_init(struct contlog_encode_state *ces, fracpart_t quad[])
      int shift = nbits - fls(mask) - 1;
      for (int i = 0; i < 4; ++i)
 	  quad[i] <<= shift;
-     ces->max_shift = REP_NBITS + 1 - SKIP_BITS;
+     ces->max_shift = MAGN_BITS;
      ces->lo = 0;
      ces->arg = 0;
 }
