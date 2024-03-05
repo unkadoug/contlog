@@ -666,11 +666,16 @@ contlog_t
 contlog_parallel(contlog_t op0, contlog_t op1)
 {
      ufracpart_t frac[2];
-     int neg = contlog_decode(op1, frac);
-     if (neg)
-	  frac[0] = -frac[0];
+     int neg = op0 < 0;
+     if (neg) {
+	     op0 = -op0;
+	     op1 = -op1;
+     }
+     if (contlog_decode(op1, frac))
+	  frac[1] = -frac[1];
      fracpart_t quad[] = {0, frac[0], frac[0], frac[1]};
-     return (contlog_arith(op0, quad));
+     contlog_t val = contlog_arith(op0, quad);
+     return (neg ? -val : val);
 }
 
 /* Compute sqrt(numer/denom) */
