@@ -537,15 +537,6 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
 {
      int j = 2;
 #if (CONTLOG_SIGNED)
-     if (operand >> SGNBIT_POS) {
-	  for (int i = 0; i < 2; ++i) {
-	       quad[i] -= quad[i^2];
-	       quad[i^2] += quad[i];
-	       quad[i] -= quad[i^2];
-	  }
-	  j ^= 2;
-	  operand = -operand;
-     }
      operand <<= 1;
 #endif
 #if (CONTLOG_UNBOUNDED)
@@ -590,11 +581,16 @@ contlog_t
 contlog_add(contlog_t op0, contlog_t op1)
 {
      ufracpart_t frac[2];
-     int neg = contlog_decode(op1, frac);
-     if (neg)
+     int neg = op0 < 0;
+     if (neg) {
+	     op0 = -op0;
+	     op1 = -op1;
+     }
+     if (contlog_decode(op1, frac))
 	  frac[0] = -frac[0];
      fracpart_t quad[] = {frac[0], frac[1], frac[1], 0};
-     return (contlog_arith(op0, quad));
+     contlog_t val = contlog_arith(op0, quad);
+     return (neg ? -val : val);
 }
 
 /* Compute x-y */
@@ -602,11 +598,16 @@ contlog_t
 contlog_sub(contlog_t op0, contlog_t op1)
 {
      ufracpart_t frac[2];
-     int neg = contlog_decode(op1, frac);
-     if (!neg)
+     int neg = op0 < 0;
+     if (neg) {
+	     op0 = -op0;
+	     op1 = -op1;
+     }
+     if (!contlog_decode(op1, frac))
 	  frac[0] = -frac[0];
      fracpart_t quad[] = {frac[0], frac[1], frac[1], 0};
-     return (contlog_arith(op0, quad));
+     contlog_t val = contlog_arith(op0, quad);
+     return (neg ? -val : val);
 }
 
 /* Compute x*y */
@@ -614,7 +615,12 @@ contlog_t
 contlog_mult(contlog_t op0, contlog_t op1)
 {
      ufracpart_t frac[2];
-     int neg = contlog_decode(op1, frac);
+     int neg = op0 < 0;
+     if (neg) {
+	  op0 = -op0;
+	  op1 = -op1;
+     }
+     neg = contlog_decode(op1, frac);
      fracpart_t quad[] = {0, frac[1], frac[0], 0};
      contlog_t val = contlog_arith(op0, quad);
      return (neg ? -val : val);
@@ -625,7 +631,12 @@ contlog_t
 contlog_compmult(contlog_t op0, contlog_t op1)
 {
      ufracpart_t frac[2];
-     int neg = contlog_decode(op1, frac);
+     int neg = op0 < 0;
+     if (neg) {
+	  op0 = -op0;
+	  op1 = -op1;
+     }
+     neg = contlog_decode(op1, frac);
      if (neg)
 	  frac[0] = -frac[0];
      frac[0] = frac[1] - frac[0];
@@ -643,7 +654,12 @@ contlog_t
 contlog_div(contlog_t op0, contlog_t op1)
 {
      ufracpart_t frac[2];
-     int neg = contlog_decode(op1, frac);
+     int neg = op0 < 0;
+     if (neg) {
+	  op0 = -op0;
+	  op1 = -op1;
+     }
+     neg = contlog_decode(op1, frac);
      fracpart_t quad[] = {0, frac[0], frac[1], 0};
      contlog_t val = contlog_arith(op0, quad);
      return (neg ? -val : val);
@@ -654,11 +670,23 @@ contlog_t
 contlog_atnsum(contlog_t op0, contlog_t op1)
 {
      ufracpart_t frac[2];
-     int neg = contlog_decode(op1, frac);
-     if (neg)
+     int neg = op0 < 0, inv = 0;
+     if (neg) {
+	  op0 = -op0;
+	  op1 = -op1;
+     }
+     if (contlog_decode(op1, frac))
 	  frac[0] = -frac[0];
-     fracpart_t quad[] = {frac[0], frac[1], frac[1], -frac[0]};
-     return (contlog_arith(op0, quad));
+#if (CONTLOG_UNBOUNDED)
+     else if (op1 >= MINVAL - op0) {
+	  op0 = MINVAL - op0;
+	  inv = 1;
+	  neg = !neg;
+     }
+#endif
+     fracpart_t quad[] = {frac[inv], frac[!inv], frac[!inv], -frac[inv]};
+     contlog_t val = contlog_arith(op0, quad);
+     return (neg ? -val : val);
 }
 
 /* Compute (x*y)/(x+y) */
