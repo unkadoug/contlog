@@ -543,8 +543,7 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
      if (operand >> SGNBIT_POS) {
 	  j ^= 2;
 	  operand = -operand;
-     } else if (operand == 0)
-	  j = 2;
+     }
      operand <<= 1;
 #endif
 
