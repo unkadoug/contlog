@@ -691,21 +691,20 @@ contlog_parallel(contlog_t op0, contlog_t op1)
 {
      int neg = op0 < 0;
      if (neg) {
-	     op0 = -op0;
-	     op1 = -op1;
+	  op0 = -op0;
+	  op1 = -op1;
+     }
+     if (op1 < 0 && -op1 < op0) {
+	  op1 += op0;		/* op0: op0+op1 */
+	  op0 -= op1;		/* -op1; op0+op1 */
+	  op1 = -op0 - op1;	/* -op1; -op0 */
+	  neg ^= 1;
      }
      ufracpart_t frac[2];
-     int inv = contlog_decode(op1, frac);
-     fracpart_t quad[] = {0, frac[0], frac[0], 0};
-     if (inv) {
-	     quad[0] = -frac[1];
-	     op0 = MINVAL - op0;
-     } else {
-	     quad[3] = frac[1];
-     }
+     if (contlog_decode(op1, frac))
+	  frac[1] = -frac[1];
+     fracpart_t quad[] = {0, frac[0], frac[0], frac[1]};
      contlog_t val = contlog_arith(op0, quad);
-     if (inv)
-	     val = MINVAL - val;
      return (neg ? -val : val);
 }
 
