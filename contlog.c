@@ -751,15 +751,10 @@ contlog_sqrt(contlog_t operand)
      return (arg);
 }
 
-/* Compute f(x) = x / sqrt(1 + x*x); ie, sin(arctan(x)) */
-contlog_t
-contlog_sinarctan(contlog_t operand)
+/* Compute f(x) = x / sqrt(1 + x*x); ie, sin(arctan(x)) when 0 <= x < 1 */
+static contlog_t
+contlog_sinarctan_unit(contlog_t operand)
 {
-     if (operand < 0) {
-	  operand = -operand;
-	  if (operand < 0)
-	       return (-(operand >> 1));
-     }
      ufracpart_t frac[2];
      (void)contlog_decode(operand, frac);
      fracpart_t numer = frac[0];
@@ -776,6 +771,25 @@ contlog_sinarctan(contlog_t operand)
 	  j ^= 2;
      } while (!contlog_encode_bounds(&ces, quad));
      return (ces.arg);
+}
+
+/* Compute f(x) = x / sqrt(1 + x*x); ie, sin(arctan(x)) */
+contlog_t
+contlog_sinarctan(contlog_t operand)
+{
+     int neg = operand < 0;
+     if (neg) {
+	  operand = -operand;
+	  if (operand < 0)
+	       return (-(operand >> 1));
+     }
+     contlog_t val;
+     if (CONTLOG_UNBOUNDED && operand > MINVAL - operand) {
+	  val = contlog_sinarctan_unit(MINVAL-operand);
+	  val = contlog_mult(operand, val);
+     } else
+	  val = contlog_sinarctan_unit(operand);
+     return (neg ? -val: val);
 }
 
 /* Compute sqrt(x*x + y*y) */
@@ -797,7 +811,7 @@ contlog_hypot(contlog_t op0, contlog_t op1)
 	  }
 	  if (op0 == 0)
 	       return (op1);
-	  div = contlog_sinarctan(contlog_div(op0, op1));
+	  div = contlog_sinarctan_unit(contlog_div(op0, op1));
      }
      return (contlog_div(op0, div));
 }
