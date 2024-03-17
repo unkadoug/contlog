@@ -706,13 +706,13 @@ contlog_parallel(contlog_t op0, contlog_t op1)
      return (neg ? -val : val);
 }
 
-/* Compute sqrt(numer/denom) */
+/* Compute sqrt(numer/denom), where numer <= denom. */
 static contlog_t
 contlog_sqrt_frac(ufracpart_t numer, ufracpart_t denom)
 {
      /*
-      * Scale the argument down by a power of 4, to the range [1, 4), and the
-      * result up by a power of 2, to avoid the higher iteration count that
+      * Scale the argument up by a power of 4, to the range [1/4, 1), and the
+      * result down by a power of 2, to avoid the higher iteration count that
       * comes with larger values.
       */
      int shift = lgratio(denom, numer) / 2;
@@ -742,7 +742,7 @@ contlog_sqrt(contlog_t operand)
      ufracpart_t frac[2];
      if (contlog_decode(operand, frac))
 	  return (MINVAL);
-     int improper = frac[0] >= frac[1];
+     int improper = CONTLOG_UNBOUNDED && frac[0] >= frac[1];
      ufracpart_t numer = frac[improper];
      ufracpart_t denom = frac[!improper];
      contlog_t arg = contlog_sqrt_frac(numer, denom);
