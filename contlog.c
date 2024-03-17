@@ -665,22 +665,20 @@ contlog_div(contlog_t op0, contlog_t op1)
 contlog_t
 contlog_atnsum(contlog_t op0, contlog_t op1)
 {
-     int neg = op0 < 0, inv = 0;
+     int neg = op0 < 0;
      if (neg) {
 	  op0 = -op0;
 	  op1 = -op1;
      }
+     if (CONTLOG_UNBOUNDED && op1 >= MINVAL - op0) {
+	  op0 = MINVAL - op0;
+	  op1 = MINVAL - op1;
+	  neg ^= 1;
+     }
      ufracpart_t frac[2];
      if (contlog_decode(op1, frac))
 	  frac[0] = -frac[0];
-#if (CONTLOG_UNBOUNDED)
-     else if (op1 >= MINVAL - op0) {
-	  op0 = MINVAL - op0;
-	  inv = 1;
-	  neg = !neg;
-     }
-#endif
-     fracpart_t quad[] = {frac[inv], frac[!inv], frac[!inv], -frac[inv]};
+     fracpart_t quad[] = {frac[0], frac[1], frac[1], -frac[0]};
      contlog_t val = contlog_arith(op0, quad);
      return (neg ? -val : val);
 }
