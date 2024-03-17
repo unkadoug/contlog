@@ -784,20 +784,22 @@ contlog_hypot(contlog_t op0, contlog_t op1)
 {
      if (op0 < 0)
 	  op0 = -op0;
-     else if (op0 == 0)
-	  return (op1);
      if (op1 < 0)
 	  op1 = -op1;
-     else if (op1 == 0)
-	  return (op0);
+     contlog_t div;
      if (op0 == op1)
-	  return (contlog_div(op0, contlog_sqrt_frac(1, 2)));
-     if (op0 > op1) {
-	  contlog_t tmp = op0;
-	  op0 = op1;
-	  op1 = tmp;
+	  div = contlog_sqrt_frac(1, 2);
+     else {
+	  if (op0 > op1) {
+	       op1 = op0 - op1;
+	       op0 -= op1;
+	       op1 += op0;
+	  }
+	  if (op0 == 0)
+	       return (op1);
+	  div = contlog_sinarctan(contlog_div(op0, op1));
      }
-     return (contlog_div(op0, contlog_sinarctan(contlog_div(op0, op1))));
+     return (contlog_div(op0, div));
 }
 
 /* Compute log(1 + numer/denom) */
