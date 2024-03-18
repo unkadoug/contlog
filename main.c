@@ -31,9 +31,9 @@ print_frac(contlog_t operand)
 	__intmax_t opx = operand;
 	int sh = 4*sizeof(contlog_t);
 	opx -= opx >> sh >> sh << sh << sh;
-	printf("%s%ju/%ju (%0*jx) = %18.12f\n", neg?"-":"", nx, dx,
+	printf("%s%ju/%ju (%0*jx) = %22.16Lf\n", neg?"-":"", nx, dx,
 	       (int)(2*sizeof(contlog_t)), opx,
-	       (double)pair[0]/pair[1] * (neg?-1:1));
+	       (long double)pair[0]/pair[1] * (neg?-1:1));
 }
 
 static int usage(const char *cmd)
