@@ -855,32 +855,33 @@ contlog_log1p(contlog_t operand)
 	       return (MINVAL);
 	  denom -= numer;
      }
+
      int shift = 0;
-     if (numer/4 >= denom) {
+     if (CONTLOG_UNBOUNDED && numer >= denom) {
 	  /*
 	   * The log1p continued fraction converges slowly for large argments,
-	   * which leads to overflows and inaccuracy.  To speed up for arguments
-	   * >= 4, use the identity: log1p(n/d) == shift * log1p(1) +
+	   * which leads to overflows and inaccuracy.  To speed up for large
+	   * arguments, use the identity: log1p(n/d) == shift * log1p(1) +
 	   * log1p((n+d-D) / D), where D = d<<shift.  First, replace numer,denom
 	   * with shift-adjusted values.
 	   */
 	  numer += denom;
 	  shift = lgratio(numer, denom);
 	  denom <<= shift;
+	  int nzbits = ffs(numer | denom) - 1;
+	  numer >>= nzbits;
+	  denom >>= nzbits;
 	  numer -= denom;
      }
      contlog_t arg = contlog_log1p_frac(numer, denom);
-     if (shift != 0) {
+     if (CONTLOG_UNBOUNDED && shift != 0) {
 	  /* Compute actual log1p from shift-adjusted log1p. */
 	  contlog_t log2 = contlog_log1p_frac(1, 1);
 	  (void)contlog_decode(log2, frac);
-	  frac[0] *= shift;
-	  fracpart_t quad[] = {frac[0], frac[1], frac[1], 0};
+	  fracpart_t quad[] = {frac[0] * shift, frac[1], frac[1], 0};
 	  arg = contlog_arith(arg, quad);
      }
-     if (neg)
-	  arg = -arg;
-     return (arg);
+     return (neg ? -arg: arg);
 }
 
 /* Compute 1/e**x. */
