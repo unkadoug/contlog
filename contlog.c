@@ -857,7 +857,7 @@ contlog_log1p(contlog_t operand)
      }
 
      int shift = 0;
-     if (CONTLOG_UNBOUNDED && numer >= denom) {
+     if (numer >= denom) {
 	  /*
 	   * The log1p continued fraction converges slowly for large argments,
 	   * which leads to overflows and inaccuracy.  To speed up for large
@@ -874,7 +874,7 @@ contlog_log1p(contlog_t operand)
 	  numer -= denom;
      }
      contlog_t arg = contlog_log1p_frac(numer, denom);
-     if (CONTLOG_UNBOUNDED && shift != 0) {
+     if (shift != 0) {
 	  /* Compute actual log1p from shift-adjusted log1p. */
 	  contlog_t log2 = contlog_log1p_frac(1, 1);
 	  (void)contlog_decode(log2, frac);
