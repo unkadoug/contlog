@@ -16,7 +16,8 @@
 			unsigned: ffs,		\
 			long: ffsl,		\
 			unsigned long: ffsl,	\
-			long long: ffsll	\
+			long long: ffsll,	\
+			unsigned long long: ffsll\
 	  )(X)
 
 static int
@@ -34,7 +35,8 @@ short_fls(contlog_t x) {
 			unsigned: fls,		\
 			long: flsl,		\
 			unsigned long: flsl,	\
-			long long: flsll	\
+			long long: flsll,	\
+			unsigned long long: flsll\
 	  )(X)
 
 /*
