@@ -218,11 +218,10 @@ struct contlog_encode_state {
 static void
 contlog_encode_state_init(struct contlog_encode_state *ces, fracpart_t quad[])
 {
-     int nbits = REP_NBITS;
      fracpart_t mask = 0;
      for (int i = 0; i < 4; ++i)
 	  mask |= quad[i] ^ (quad[i] >> 1);
-     int shift = nbits - fls(mask) - 1;
+     int shift = REP_NBITS- 1 - fls(mask);
      for (int i = 0; i < 4; ++i)
 	  quad[i] <<= shift;
      ces->max_shift = MAGN_BITS;
