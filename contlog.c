@@ -573,7 +573,6 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
 	  j ^= 2;
      }
      return (contlog_encode_exact(ces.max_shift, ces.lo&1, ces.arg, quad));
-
 }
 
 /* Compute x+y */
