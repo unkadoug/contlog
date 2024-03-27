@@ -927,18 +927,22 @@ contlog_cssqrt(contlog_t operand, int n)
 	  return (MINVAL);
      fracpart_t numer = frac[0];
      fracpart_t denom = frac[1];
-     fracpart_t nn1 = n * (n+1);
-     fracpart_t quad[] = {nn1*denom-numer, nn1*denom, 1, 1};
+     fracpart_t L = 1;
+     fracpart_t quad[] = {0, 1, denom, denom};
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
      int overflow = 0;
-     int j = 2;
+     int j = 0;
      do {
 	  /* Update quad to shrink range containing the result */
-	  overflow = axpby(overflow, j, quad, nn1*denom, 0);
-	  n += 2;
-	  nn1 = n * (n+1);
-	  overflow += axpby(0, j, quad, numer, nn1*denom-numer);
+	  fracpart_t H = n++;
+	  H *= n++;
+	  fracpart_t sum[4];
+	  overflow = axpby(overflow, j, quad, L*numer, H);
+	  dotprod(&sum[0], overflow, quad[j^2], quad[j^0], -numer, denom);
+	  dotprod(&sum[2], overflow, quad[j^3], quad[j^1], -numer, denom);
+	  overflow += pack(&quad[j], sum);
+	  L = H;
 	  j ^= 2;
      } while (!contlog_encode_bounds(&ces, quad));
      return (ces.arg);
