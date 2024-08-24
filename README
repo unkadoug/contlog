@@ -1,43 +1,49 @@
-Contlog - representing numbers as continued logarithms
+Contlog - representing rational numbers with continued logarithms
 
-#Prelude
+#Motivation
 
 The standard way that computers represent numerical values that
 include not just integers, but also other rational numbers, is with
 floating point, a binary imitation of scientific notation that uses a
-fixed number of bits to represent the significant digits of a value,
-and the rest to represent an exponent, or scaling factor, to express
-how many zeroes come before or after those significant bits.
-
-How many bits to assign to each purpose is standardized in the IEEE
-floating point formats for half-, single- and double-precision
-calculations.  It is not a decision than can be made to best fit the
-needs of a given application.
-
-Floating point is inherently incapable of getting some simple
-arithmetic right.  One can be divided by three and the floating point
-result is a close approximation to one third, but not exactly the same
-value.
+fixed number of bits to represent the sign and the significant digits
+of a value, and the rest of the available bits to represent an
+exponent, or scaling factor, to express where the radix point appears
+relative to those significant bits.  How many bits to assign to each
+purpose is standardized in the IEEE floating point formats for half-,
+single- and double-precision calculations.  A bit is reserved for
+expressing the sign of a value, which leads to distinct negative and
+nonnegative zeroes.  A natural 'hole' in the range of representable
+numbers is filled in by 'subnormal' numbers that cover a range where
+exponents are too small to be represented.  There are also positive
+and negative infinities, and the two 'not a number' numbers.  For all
+its complexity, though, the floating point representation cannot
+express the result of dividing 1 by 3, or 5, or anything that isn't a
+power of two.
 
 An alternative represention of rational numbers that avoids these
-problems is one based on continued fractions, where the binary
-encoding of a number is a description of the path from the root of the
-Stern-Brocot tree to that number.  That representation, though,
-amounts to a unary, simple bit-counting representation for integers,
-and limiting the largest representable number to a value like 32 or 64
-in a proposed alternative to floating point makes that alternative
-impractical.
+complexities and inaccuracies is one based on continued fractions,
+where the binary encoding of a number is a description of the path
+from the root of the Stern-Brocot tree to that number.  That
+representation, though, amounts to a unary, simple bit-counting
+representation for integers, and limiting the largest representable
+number to a value like 32 or 64 in a proposed alternative to floating
+point makes that alternative impractical.
 
-Instead, the software here implements a representation and some basic
-arithmetic based on the ideas of continuous binary logarithms first
-expressed by Bill Gosper in his document describing arithmetic with
-continued fractions.
+Instead, the software presented here implements a representation and
+some basic arithmetic based on the ideas of continued binary
+logarithms first expressed by Bill Gosper in his document describing
+arithmetic with continued fractions.  Continued logarithms allow any
+rational number to be represented exactly with a finite number of
+bits, allows some large integers to be expressed with no more bits
+than are necessary in their binary integer expression, and avoids the
+strangeness around zero inherent in any floating point representation.
 
 #Introduction
 
 Consider this version of the binary GCD algorithm, for finding the
 greatest common divisor of two positive numbers using only shifting
 and subtraction.
+
 `
 int gcd(int pair[2])
 {
@@ -58,12 +64,13 @@ int gcd(int pair[2])
 	return (pair[0] >> (ffs(pair[0]) - 1) << shift);
 }
 `
+
 The print statements in the function log the transformations made to
-the values that ultimately made them match, to end the iteration.
+the values that ultimately caused them to match, to end the iteration.
 They also write a binary representation of the rational number that is
-the ratio of the two inputs.  So, for example computing the gcd of 14 and 9
-prints the sequence "101001", which is a binary representation
-of the rational number 14/9.
+the ratio of the two inputs.  So, for example computing the gcd of 14
+and 9 prints the sequence "101001", which is a binary representation
+of the rational number 14/9 in the 'contlog' format.
 
 Translating from a nonzero binary representation back to a ratio of
 integers can be understood as walking a path from the root of an
@@ -80,6 +87,7 @@ with the current node label.  Processing a '1' bit is similar,
 computing a new label from the current label and the upper bound,
 doubling the values of the upper bound, and replacing the lower bound
 with the current value.  For the sequence "101001", the steps are:
+
 `
 1. low 0/1, current 1/1, high 1/0.  Process 1 bit.
 2. low 1/1, current 2/1, high 2/0.  Process 0 bit.
@@ -89,7 +97,9 @@ with the current value.  For the sequence "101001", the steps are:
 6. low 12/8, current 14/9, high 8/5.  Done.
 `
 
-Here is a picture of the first few levels of the Gosper tree:
+Here is a picture of the first few levels of the Gosper tree, bounded
+by 0/1 and 1/0:
+
 `
 0/1
 						1/32
@@ -163,10 +173,14 @@ continued logarithms as a binary alternative to continued fractions
 for representing real numbers.  The representation here is only
 slightly different from the one he proposed.  He observed that a
 string of bits like
+
 `
 101001
 `
-can represent the fraction
+
+can represent a sequence of exponents 0, 0, 0, 1, 0, that appear in
+the continued fraction
+
 `
 2**0 + 2**0 / (
        2**0 + 2**0 / (
@@ -174,12 +188,13 @@ can represent the fraction
 	             2**1 + 2**1 / (
 		            2**0))))
 `
-which is 14/9.  The first substring of n+1 1-bits shows that the
-value is between 2**n and 2**(n+1).  After subtracting 2**n, and
+
+which is 14/9.  An initial substring of exactly n+1 1-bits shows that
+the value is between 2**n and 2**(n+1).  After subtracting 2**n, and
 dividing by 2**n, the value left is expressed in the bits that follow,
-beginning with a string of 0-bits.  Each set of matching bits
-represents the integer part of a binary logarithm, thus the name
-'continued logarithms'.
+beginning with a string of one or more 0-bits.  Each maximal set of
+matching bits represents the integer part of a binary logarithm, thus
+the name 'continued logarithms'.
 
 The representation here has the virtue that the mapping from a set of
 bits, interpreted as a binary integer, to a rational number, is
@@ -191,16 +206,30 @@ representation.
 Strictly speaking, Gosper's encoding only represented numbers greater
 than or equal to one.  The representation presented here can represent
 proper fractions by beginning the bitstring with 0-bits instead of
-1-bits.  It can also include a twos-complement representation for
-negative values.
+1-bits.  If the bits of integer x represent the value y in contlog
+format, then -x represents 1/y, when x is nonzero.  To extend this
+representation further, to include negative numbers, add a leading
+0-bit, and the twos-complement of the resulting bitstring represents
+the negative of the initial value. This means that if the integer x
+has bits set to represent the value y in contlog format, then -x
+represents -y.  It also means that a reciprocal for zero can exist;
+the integer with only its highest order bit set represents a negative
+infinity, the only not-a-number that this format can represent.
+
+Just as some langauges offer an integer type without a sign bit, to
+represent a wider range of nonnegative integers, the sign bit can be
+discarded from this format, for more accuracy in representing
+nonnegtive numbers only.  The next bit, a 'reciprocal' bit, can also
+be discarded for still more accuracy in representing numbers in the
+unit interval, including 0 but excluding 1.
 
 The farther from 1 that a number gets, the more bits it uses for the
 initial scaling, and the fewer it has left for anything else.  Thus,
-half the numbers that can be represented are at least 1, a quarter are
-at least 2, an eighth are at least 4, and so on.  With half the
-representable values between 1/2 and 2/1, calculating with values in
-that range would likely preserve accuracy better than would working
-with very large or small values.
+half the numbers that can be represented have absolute values at least
+1, a quarter are at least 2, an eighth are at least 4, and so on.
+With half the positive representable values between 1/2 and 2/1,
+calculating with values in that range would likely preserve accuracy
+better than would working with very large or small values.
 
 #Extracting ratios from this representation
 
