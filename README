@@ -1,6 +1,6 @@
 Contlog - representing numbers as continued logarithms
 
-#Introduction
+#Prelude
 
 The standard way that computers represent numerical values that
 include not just integers, but also other rational numbers, is with
