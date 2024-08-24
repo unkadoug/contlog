@@ -2,6 +2,39 @@ Contlog - representing numbers as continued logarithms
 
 #Introduction
 
+The standard way that computers represent numerical values that
+include not just integers, but also other rational numbers, is with
+floating point, a binary imitation of scientific notation that uses a
+fixed number of bits to represent the significant digits of a value,
+and the rest to represent an exponent, or scaling factor, to express
+how many zeroes come before or after those significant bits.
+
+How many bits to assign to each purpose is standardized in the IEEE
+floating point formats for half-, single- and double-precision
+calculations.  It is not a decision than can be made to best fit the
+needs of a given application.
+
+Floating point is inherently incapable of getting some simple
+arithmetic right.  One can be divided by three and the floating point
+result is a close approximation to one third, but not exactly the same
+value.
+
+An alternative represention of rational numbers that avoids these
+problems is one based on continued fractions, where the binary
+encoding of a number is a description of the path from the root of the
+Stern-Brocot tree to that number.  That representation, though,
+amounts to a unary, simple bit-counting representation for integers,
+and limiting the largest representable number to a value like 32 or 64
+in a proposed alternative to floating point make that alternative
+impractical.
+
+Instead, the software here implements a representation and some basic
+arithmetic based on the ideas of continuous binary logarithms first
+expressed by Bill Gosper in his document describing arithmetic with
+continued fractions.
+
+#Introduction
+
 Consider this version of the binary GCD algorithm, for finding the
 greatest common divisor of two positive numbers using only shifting
 and subtraction.
