@@ -25,7 +25,7 @@ encoding of a number is a description of the path from the root of the
 Stern-Brocot tree to that number.  That representation, though,
 amounts to a unary, simple bit-counting representation for integers,
 and limiting the largest representable number to a value like 32 or 64
-in a proposed alternative to floating point make that alternative
+in a proposed alternative to floating point makes that alternative
 impractical.
 
 Instead, the software here implements a representation and some basic
@@ -194,6 +194,13 @@ proper fractions by beginning the bitstring with 0-bits instead of
 1-bits.  It can also include a twos-complement representation for
 negative values.
 
+The farther from 1 that a number gets, the more bits it uses for the
+initial scaling, and the fewer it has left for anything else.  Thus,
+half the numbers that can be represented are at least 1, a quarter are
+at least 2, an eighth are at least 4, and so on.  With half the
+representable values between 1/2 and 2/1, calculating with values in
+that range would likely preserve accuracy better than would working
+with very large or small values.
 
 #Extracting ratios from this representation
 
