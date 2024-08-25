@@ -185,16 +185,16 @@ can represent a sequence of exponents 0, 0, 0, 1, 0, that appear in
 the continued fraction
 
 ```
-2**0 + 2**0 / (
-       2**0 + 2**0 / (
-              2**0 + 2**0 / (
-	             2**1 + 2**1 / (
-		            2**0))))
+2^0 + 2^0 / (
+       2^0 + 2^0 / (
+              2^0 + 2^0 / (
+	             2^1 + 2^1 / (
+		            2^0))))
 ```
 
 which is 14/9.  An initial substring of exactly n+1 1-bits shows that
-the value is between 2**n and 2**(n+1).  After subtracting 2**n, and
-dividing by 2**n, the value left is expressed in the bits that follow,
+the value is between 2^n and 2^(n+1).  After subtracting 2^n, and
+dividing by 2^n, the value left is expressed in the bits that follow,
 beginning with a string of one or more 0-bits.  Each maximal set of
 matching bits represents the integer part of a binary logarithm, thus
 the name 'continued logarithms'.
