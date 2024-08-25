@@ -97,8 +97,9 @@ with the current value.  For the sequence "101001", the steps are:
 6. low 12/8, current 14/9, high 8/5.  Done.
 ```
 
-Here is a picture of the first few levels of the Gosper tree, bounded
-by 0/1 and 1/0:
+<details>
+<summary>The first few levels of the Gosper tree, bounded
+by 0/1 and 1/0</summary>
 
 ```
 0/1
@@ -167,6 +168,8 @@ by 0/1 and 1/0:
 						32/1
 1/0
 ```
+
+</details>
 
 In his notes on continued fraction arithmetic, Gosper introduced
 continued logarithms as a binary alternative to continued fractions
