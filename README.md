@@ -1,6 +1,6 @@
-Contlog - representing rational numbers with continued logarithms
+# Contlog - representing rational numbers with continued logarithms
 
-# Motivation
+## Motivation
 
 The standard way that computers represent numerical values that
 include not just integers, but also other rational numbers, is with
@@ -38,7 +38,7 @@ bits, allows some large integers to be expressed with no more bits
 than are necessary in their binary integer expression, and avoids the
 strangeness around zero inherent in any floating point representation.
 
-# Introduction
+## Introduction
 
 Consider this version of the binary GCD algorithm, for finding the
 greatest common divisor of two positive numbers using only shifting
@@ -232,7 +232,7 @@ With half the positive representable values between 1/2 and 2/1,
 calculating with values in that range would likely preserve accuracy
 better than would working with very large or small values.
 
-# Extracting ratios from this representation
+## Extracting ratios from this representation
 
 While this representation is great for representing exactly rational
 numbers with small numerator and denominator in just a few bits, it
@@ -259,7 +259,7 @@ could map to the same ratio.  For the case of 127/1, this produces the
 expected result 127/1.  For 1000/999, the result looks like 1000/999,
 and not 470999/470528.
 
-# Arithmetic
+## Arithmetic
 
 Where Gosper seeks to compute with unbounded continued fractions, this
 implementation aspires only to fixed-width operands and results.
@@ -281,7 +281,7 @@ After every incremental update, examine the coefficients to see if
 some of the output bits can be extracted.
 
 
-# Test program
+## Test program
 
 The 'contlog' program produced from this source code is a simple
 calculator that uses the contlog representation, and allows both
