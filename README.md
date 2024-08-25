@@ -9,7 +9,8 @@ fixed number of bits to represent the sign and the significant digits
 of a value, and the rest of the available bits to represent an
 exponent, or scaling factor, to express where the radix point appears
 relative to those significant bits.  How many bits to assign to each
-purpose is standardized in the IEEE floating point formats for half-,
+purpose is standardized in the [IEEE floating
+point](https://en.wikipedia.org/wiki/IEEE_754) formats for half-,
 single- and double-precision calculations.  A bit is reserved for
 expressing the sign of a value, which leads to distinct negative and
 nonnegative zeroes.  A natural 'hole' in the range of representable
