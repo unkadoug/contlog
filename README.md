@@ -23,11 +23,12 @@ power of two.
 An alternative represention of rational numbers that avoids these
 complexities and inaccuracies is one based on continued fractions,
 where the binary encoding of a number is a description of the path
-from the root of the Stern-Brocot tree to that number.  That
-representation, though, amounts to a unary, simple bit-counting
-representation for integers, and limiting the largest representable
-number to a value like 32 or 64 in a proposed alternative to floating
-point makes that alternative impractical.
+from the root of the [Stern-Brocot
+tree](https://en.wikipedia.org/wiki/Stern%E2%80%93Brocot_tree) to that
+number.  That representation, though, amounts to a unary, simple
+bit-counting representation for integers, and limiting the largest
+representable number to a value like 32 or 64 in a proposed
+alternative to floating point makes that alternative impractical.
 
 Instead, the software presented here implements a representation and
 some basic arithmetic based on the ideas of continued binary
@@ -171,11 +172,12 @@ by 0/1 and 1/0</summary>
 
 </details>
 
-In his notes on continued fraction arithmetic, Gosper introduced
-continued logarithms as a binary alternative to continued fractions
-for representing real numbers.  The representation here is only
-slightly different from the one he proposed.  He observed that a
-string of bits like
+In his [notes on continued fraction
+arithmetic](https://perl.plover.com/yak/cftalk/INFO/gosper.txt),
+Gosper introduced continued logarithms as a binary alternative to
+continued fractions for representing real numbers.  The representation
+here is only slightly different from the one he proposed.  He observed
+that a string of bits like
 
 ```
 101001
