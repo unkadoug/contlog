@@ -184,13 +184,11 @@ string of bits like
 can represent a sequence of exponents 0, 0, 0, 1, 0, that appear in
 the continued fraction
 
-```
-$2^0 + 2^0 / (
+$$2^0 + 2^0 / (
        2^0 + 2^0 / (
               2^0 + 2^0 / (
 	             2^1 + 2^1 / (
-		            2^0))))$
-```
+		            2^0))))$$
 
 which is 14/9.  An initial substring of exactly $n+1$ 1-bits shows
 that the value is between $2^n$ and $2^{n+1}$.  After subtracting
