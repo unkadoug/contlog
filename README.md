@@ -33,11 +33,13 @@ alternative to floating point makes that alternative impractical.
 Instead, the software presented here implements a representation and
 some basic arithmetic based on the ideas of continued binary
 logarithms first expressed by Bill Gosper in his document describing
-arithmetic with continued fractions.  Continued logarithms allow any
-rational number to be represented exactly with a finite number of
-bits, allows some large integers to be expressed with no more bits
-than are necessary in their binary integer expression, and avoids the
-strangeness around zero inherent in any floating point representation.
+[arithmetic with continued
+fractions](https://perl.plover.com/yak/cftalk/INFO/gosper.txt).
+Continued logarithms allow any rational number to be represented
+exactly with a finite number of bits, allows some large integers to be
+expressed with no more bits than are necessary in their binary integer
+expression, and avoids the strangeness around zero inherent in any
+floating point representation.
 
 ## Introduction
 
@@ -172,12 +174,11 @@ by 0/1 and 1/0</summary>
 
 </details>
 
-In his [notes on continued fraction
-arithmetic](https://perl.plover.com/yak/cftalk/INFO/gosper.txt),
-Gosper introduced continued logarithms as a binary alternative to
-continued fractions for representing real numbers.  The representation
-here is only slightly different from the one he proposed.  He observed
-that a string of bits like
+In his notes on continued fraction arithmetic, Gosper introduced
+continued logarithms as a binary alternative to continued fractions
+for representing real numbers.  The representation here is only
+slightly different from the one he proposed.  He observed that a
+string of bits like
 
 ```
 101001
