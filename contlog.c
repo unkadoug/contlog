@@ -170,9 +170,20 @@ contlog_encode_exact(int max_shift, int lo, contlog_t arg, fracpart_t pair[])
 	  if (pair[lo] == pair[lo^1])
 	       return (0);	/* avoids too-much bit shift */
 #endif
-	  if (MINVAL || pair[lo^1] != 0)
-	       arg = 1;		/* result = 1 / result */
-	  lo ^= 1;
+	  if (arg == 0) {
+		  if (MINVAL || pair[lo^1] != 0)
+			  arg = 1;		/* result = 1 / result */
+		  lo ^= 1;
+	  } else {
+		  /*
+		   * result > 1, from encode_bounds.  Flip to a value in (1/4,
+		   * 1/2] and process one more bit.
+		   */
+		  pair[lo] -= pair[lo^1];
+		  pair[lo^1] *= 2;
+		  arg = 2 * arg + (lo? -1: 1);
+		  --max_shift;
+	  }
      }
 
      for (;;) {
@@ -258,7 +269,7 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
       * have been pushed too far apart.
       */
      for (;;) {
-	  /* Shift 'result' up without pushing its bounds outside [-1/2, 1/2] */
+	  /* Shift 'result' up without pushing its bounds outside [-1, 1] */
 	  int shift = max_shift;
 	  if (-quad[lo] > 0)
 	       shift = min(lgratio(quad[lo^1], -quad[lo]), shift);
@@ -269,18 +280,17 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 	  arg <<= shift;	/* result <<= shift */
 
 	  if ((max_shift -= shift) == 0 || /* finished */
-	      0 >= quad[lo] ||		   /* result could be negative. */
-	      (quad[lo^1] - quad[lo] >= quad[lo] && /* or could be < 1/2. */
-	       ((quad[lo^1] - quad[lo]) / 2 >= quad[lo] ||   /* and not in */
-		quad[lo^2] / 2 >= quad[lo^3] - quad[lo^2]))) /* (1/3, 2/3). */
-		  break;
+	      quad[lo] <= quad[lo^1] / 4)  /* result could be <= 1/4. */
+	       break;
 
-	  /* 1/2 < result < 2/1, or 1/3 < result < 2/3 */
+	  /*
+	   * Result is > 1/4, so writing a '1' in arg is okay, because at worst
+	   * it will have to be flipped to a '01'.
+	   */
 	  quad[lo^1] -= quad[lo];
 	  quad[lo^3] -= quad[lo^2];
 	  arg = 2 * arg + ((lo&1)? -1: 1); /* result = (1 - result) / result */
 	  lo ^= 3;
-	  /* -1/2 < result < 1, or 1/2 < result < 2/1 */
 	  --max_shift;
      }
      ces->lo = lo;
