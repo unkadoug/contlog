@@ -176,12 +176,12 @@ contlog_encode_exact(int max_shift, int lo, contlog_t arg, fracpart_t pair[])
 		  lo ^= 1;
 	  } else {
 		  /*
-		   * result > 1, from encode_bounds.  Flip to a value in (1/4,
-		   * 1/2] and process one more bit.
+		   * 1 < result < 3, from encode_bounds.  Flip to a value in
+		   * (1/4, 1/2), shift, and process one more bit.
 		   */
 		  pair[lo] -= pair[lo^1];
 		  pair[lo^1] *= 2;
-		  arg = 2 * arg + (lo? -1: 1);
+		  arg = 2 * arg + (lo? -1: 1); /* result = (result - 1) / 2 */
 		  --max_shift;
 	  }
      }
