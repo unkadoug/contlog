@@ -283,32 +283,32 @@ consists of two kinds of steps, which can be intermingled: input steps
 and output steps.  An input step is one that looks at the next bit of
 x and uses it to update four values.  Given the quad of coefficients
 
-'''
+```
 p	r
 -	-
 q	s
-'''
+```
 
 (where initially, p = n, q = r = d, and s = 0), suppose that the next
 two unexamined bits of x are '11'.  Consuming the leading '1' halves
 the value of the rest of the bits, so some of values in the quad must
 be doubled to compensate:
 
-'''
+```
 p	2r
 -	--
 q	2s
-'''
+```
 
 Suppose instead that the next two unexamined bits of x are '10'.
 Consuming the leading '1' reduces the value of the rest of the bits by
 one, so some of the values in the quad must be modified to compensate:
 
-'''
+```
 p+r	r
 ---	-
 q+s	s
-'''
+```
 
 Eventually, when all of x is consumed, the two values in the left
 column are the sum, expressed as a fraction.
@@ -316,11 +316,11 @@ column are the sum, expressed as a fraction.
 An output step is one that extracts a bit of the answer, possibly even
 before the input is complete.  For example, in the expression of the sum
 
-'''
+```
 p	r
 -	-
 q	s
-'''
+```
 
 the final result must be a value somewhere in the range (p/q, r/s).
 Inputting more bits of x just pushes these lower and upper bounds
@@ -330,22 +330,22 @@ the result must begin with a '1'), as long as the values of the quad
 are updated to reflect that:
 
 
-'''
+```
 p	r
 --	--
 2q	2s
-'''
+```
 
 On the other hand, if r < 2*s, the upper bound is less than 2, then a
 '0' can be extracted and written to the output, with the quad
 transformed to
 
 
-'''
+```
 p-q	r-s
 ---	---
  q	 s
-'''
+```
 
 By performing as many output steps as possible between input steps,
 the intermediate values in the quad remain smaller and reduce the
