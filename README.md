@@ -358,7 +358,7 @@ The implementation isn't precisely as described above.  It is more
 aggressive with output than described to avoid getting stuck when the
 lower and upper bounds get closer and closer, but stay on opposite
 sides of 2.  it guesses which side will win, and fixes things later if
-the guess was wrong.  It handles a sequence of idential bits all at
+the guess was wrong.  It handles a sequence of identical bits all at
 once, not one-by-one.  But the basic ideas are as describe here (and,
 originally, by Gosper).
 
