@@ -11,15 +11,15 @@ exponent, or scaling factor, to express where the radix point appears
 relative to those significant bits.  How many bits to assign to each
 purpose is standardized in the [IEEE floating
 point](https://en.wikipedia.org/wiki/IEEE_754) formats for half-,
-single- and double-precision calculations.  A bit is reserved for
-expressing the sign of a value, which leads to distinct negative and
-nonnegative zeroes.  A natural 'hole' in the range of representable
-numbers is filled in by 'subnormal' numbers that cover a range where
-exponents are too small to be represented.  There are also positive
-and negative infinities, and the two 'not a number' numbers.  For all
-its complexity, though, the floating point representation cannot
-express the result of dividing 1 by 3, or 5, or anything that isn't a
-power of two.
+single- double-, quadruple- and octuple-precision calculations.  A bit
+is reserved for expressing the sign of a value, which leads to
+distinct negative and nonnegative zeroes.  A natural 'hole' in the
+range of representable numbers is filled in by 'subnormal' numbers
+that cover a range where exponents are too small to be represented.
+There are also positive and negative infinities, and the two 'not a
+number' numbers.  For all its complexity, though, the floating point
+representation cannot express the result of dividing 1 by 3, or 5, or
+anything that isn't a power of two.
 
 An alternative represention of rational numbers that avoids these
 complexities and inaccuracies is one based on continued fractions,
@@ -189,10 +189,10 @@ can represent a sequence of exponents 0, 0, 0, 1, 0, that appear in
 the continued fraction
 
 $$2^0 + 2^0 / (
-       2^0 + 2^0 / (
+        2^0 + 2^0 / (
               2^0 + 2^0 / (
-	             2^1 + 2^1 / (
-		            2^0))))$$
+	            2^1 + 2^1 / (
+		          2^0))))$$
 
 which is 14/9.  An initial substring of exactly $n+1$ 1-bits shows
 that the value is between $2^n$ and $2^{n+1}$.  After subtracting
@@ -273,17 +273,94 @@ implementation does that.  Those two values are scaled up, doubling
 both until one or both of them would overflow if doubled again.  The
 values are used to form a homographic function that is evaluated at
 the value of the other operand to compute the composition of the two
-operands.  So, for example, to compute x + y, first find that y=n/d, and then form
+operands.  So, for example, to compute x + y, first find that y = n/d,
+and then form
 
-(n + dx) / (d + 0x)
+$$(n + dx) / (d + 0x)$$
 
-and update the four coefficients as the program consumes the leading
-bits of x.  When such an update leads to overflow, scale the
-coefficents down, to fit within the fixed number of bits available.
+as an unusual expression of x + n/d.  The process of computing x + y
+consists of two kinds of steps, which can be intermingled: input steps
+and output steps.  An input step is one that looks at the next bit of
+x and uses it to update four values.  Given the quad of coefficients
 
-After every incremental update, examine the coefficients to see if
-some of the output bits can be extracted.
+'''
+p	r
+-	-
+q	s
+'''
 
+(where initially, p = n, q = r = d, and s = 0), suppose that the next
+two unexamined bits of x are '11'.  Consuming the leading '1' halves
+the value of the rest of the bits, so some of values in the quad must
+be doubled to compensate:
+
+'''
+p	2r
+-	--
+q	2s
+'''
+
+Suppose instead that the next two unexamined bits of x are '10'.
+Consuming the leading '1' reduces the value of the rest of the bits by
+one, so some of the values in the quad must be modified to compensate:
+
+'''
+p+r	r
+---	-
+q+s	s
+'''
+
+Eventually, when all of x is consumed, the two values in the left
+column are the sum, expressed as a fraction.
+
+An output step is one that extracts a bit of the answer, possibly even
+before the input is complete.  For example, in the expression of the sum
+
+'''
+p	r
+-	-
+q	s
+'''
+
+the final result must be a value somewhere in the range (p/q, r/s).
+Inputting more bits of x just pushes these lower and upper bounds
+closer together.  If, at some point, p >= 2*q, then the lower bound is
+at least 2, and it is safe to write a '1' bit to the output (because
+the result must begin with a '1'), as long as the values of the quad
+are updated to reflect that:
+
+
+'''
+p	r
+--	--
+2q	2s
+'''
+
+On the other hand, if r < 2*s, the upper bound is less than 2, then a
+'0' can be extracted and written to the output, with the quad
+transformed to
+
+
+'''
+p-q	r-s
+---	---
+ q	 s
+'''
+
+By performing as many output steps as possible between input steps,
+the intermediate values in the quad remain smaller and reduce the
+problem of overflow.  Also, since the size of the output is limited to
+a fixed number of bits, the computaion may produce all those bits
+before the input x is fully consumed, and allow the irrelevant parts
+of the input to be ignored.
+
+The implementation isn't precisely as described above.  It is more
+aggressive with output than described to avoid getting stuck when the
+lower and upper bounds get closer and closer, but stay on opposite
+sides of 2.  it guesses which side will win, and fixes things later if
+the guess was wrong.  It handles a sequence of idential bits all at
+once, not one-by-one.  But the basic ideas are as describe here (and,
+originally, by Gosper).
 
 ## Test program
 
