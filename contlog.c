@@ -40,81 +40,17 @@ short_fls(contlog_t x) {
 	  )(X)
 
 /*
- * Translate operand into fraction frac[] = {numer, denom} that lies at the
- * 'center' of the interval of values represented by operand.
+ * For n >= d, compute the floor(log2(n/d)) with bit operations.
  */
 static int
-contlog_decode(contlog_t operand, ufracpart_t frac[])
+lgratio(fracpart_t n, fracpart_t d)
 {
-     int neg = 0;
-#if (CONTLOG_SIGNED)
-     if (operand >> SGNBIT_POS) {
-	  neg = 1;
-	  operand = -operand;
-     }
-     operand <<= 1;
-#endif
-     int improper = 0;
-     int zero = operand == 0;
-#if (CONTLOG_UNBOUNDED)
-     if (operand >> SGNBIT_POS) {
-	  improper = 1;
-	  operand = -operand;
-     } else if (operand == 0)
-	  improper = neg;
-     operand <<= 1;
-#endif
-     improper ^= zero;
-     fracpart_t pair[] = {0, 1};
-     for (int lo = 1, lobit = operand ? ffs(operand) - 1: REP_NBITS;
-	  !zero && lobit < REP_NBITS + 1; ) {
-	  operand += lo ? (operand | -operand): (operand & -operand);
-	  int nextbit = operand ? ffs(operand) - 1: REP_NBITS + lo;
-	  lo ^= 1;
-	  pair[lo] += pair[lo^1];
-	  pair[lo] <<= nextbit - lobit - 1;
-	  lobit = nextbit;
-     }
-
-     fracpart_t mask = pair[0] | pair[1];
-     int shift = ffs(mask) - 1;
-     frac[improper^1] = pair[0] >> shift;
-     frac[improper^0] = pair[1] >> shift;
-     return (neg);
-}
-
-/*
- * Given a pair of ratios that bound a range (open or closed), return the ratio
- * with smallest elements in that range.  Lower bound is bound[0]/bound[1];
- * upper bound is bound[2]/bound[3].  'frac' is a 4-element array; the result is
- * stored in its first two elements.
- */
-static void
-contlog_find_simplest(ufracpart_t bound[], int open, ufracpart_t frac[])
-{
-     int lo;
-     fracpart_t gap = 0, val;
-     for (lo = 0; gap == 0 && (bound[lo] != 0 || open); lo ^= 3) {
-	  val = gap = 1;
-	  if (bound[lo^2] != 0) {
-	       val = bound[lo^3] / bound[lo^2];
-	       bound[lo^3] %= bound[lo^2];
-	  }
-	  if (bound[lo] != 0) {
-	       gap = bound[lo^1] / bound[lo] - val;
-	       bound[lo^1] %= bound[lo];
-	       if (bound[lo^1] == 0 && open)
-		    --gap;	/* exclude range boundary */
-	  }
-	  if (gap != 0)
-	       ++val;
-	  frac[lo] += val * frac[lo^2];
-	  frac[lo^1] += val * frac[lo^3];
-     }
-     lo ^= 3;
-     lo &= 2;
-     frac[0] = frac[lo];
-     frac[1] = frac[lo^1];
+     if (n < d)
+	  return (0);
+     int lg = fls(n) - fls(d);
+     n -= d << lg;
+     n >>= 8 * sizeof(n) - 1;
+     return (lg + n);
 }
 
 /*
@@ -132,20 +68,6 @@ contlog_swap_negate(int max_shift, int lo, contlog_t arg, fracpart_t pair[])
 	  if (MAGN_BITS - max_shift != shift + 1)
 	       pair[lo^1] /= 2;
      }
-}
-
-/*
- * For n >= d, compute the floor(log2(n/d)) with bit operations.
- */
-static int
-lgratio(fracpart_t n, fracpart_t d)
-{
-     if (n < d)
-	  return (0);
-     int lg = fls(n) - fls(d);
-     n -= d << lg;
-     n >>= 8 * sizeof(n) - 1;
-     return (lg + n);
 }
 
 static int
@@ -324,52 +246,12 @@ oversum(fracpart_t sum[], int overflow,
 }
 
 /*
- * Compute the high-order part of the product of a and b, where 'a*b' computes
- * the low-order part.
- */
-static fracpart_t
-hiprod(fracpart_t a, fracpart_t b)
-{
-     const unsigned int halfbits = REP_NBITS / 2;
-     const fracpart_t halfmask = ((fracpart_t)1 << halfbits) - 1;
-     fracpart_t a_lo = a & halfmask;
-     fracpart_t a_hi = a >> halfbits;
-     fracpart_t b_lo = b & halfmask;
-     fracpart_t b_hi = b >> halfbits;
-     fracpart_t hilo = (((a_lo * b_lo) >> halfbits) & halfmask) + a_hi * b_lo;
-     fracpart_t lohi = (hilo & halfmask) + a_lo * b_hi;
-     return ((hilo >> halfbits) + (lohi >> halfbits) + a_hi * b_hi);
-}
-
-/*
- * Compute (x1*y1 >> overflow) + x2*y2, capturing numerical overflow.
- */
-static void
-dotprod(fracpart_t sum[], int overflow,
-	fracpart_t x1, fracpart_t x2,
-	fracpart_t y1, fracpart_t y2)
-{
-     fracpart_t prod1 = x1 * y1;
-     fracpart_t prod2 = x2 * y2;
-     sum[0] = hiprod(x1, y1);
-     if (overflow > 0) {
-	  int backflow = REP_NBITS - overflow;
-	  prod1 >>= overflow;
-	  prod1 &= ((fracpart_t)1 << backflow) - 1;
-	  prod1 |= sum[0] << backflow;
-	  sum[0] >>= overflow;
-     }
-     sum[1] = prod1 + prod2;
-     sum[0] += hiprod(x2, y2) + add_overflow(prod1, prod2, sum[1]);
-}
-
-/*
  * Find how much the largest of the values stored in pairs in sum[] overflowed
  * into the higher-order member of the pair.  Shift all the values right by that
  * amount and copy them back into result.  Return the overflow amount.
  */
 static int
-pack(fracpart_t result[], fracpart_t sum[])
+contlog_pack(fracpart_t result[], fracpart_t sum[])
 {
      fracpart_t mask = 0;
      for (int i = 0; i < 2; ++i) {
@@ -386,156 +268,6 @@ pack(fracpart_t result[], fracpart_t sum[])
 	  result[i] = (sum[2*i] << 1 << (SGNBIT_POS - overflow)) |
 	       ((sum[2*i+1] >> overflow) & mask);
      return (overflow);
-}
-
-/*
- * Replace x = column j with ((a*x)>>overflow) + b*y,
- * Return new overflow.
- */
-static int
-axpby(int overflow, int j, int d, fracpart_t quad[], fracpart_t a, fracpart_t b)
-{
-     fracpart_t sum[4];
-     dotprod(&sum[0], overflow, quad[j^0], quad[j^2], a, b);
-     dotprod(&sum[2], overflow, quad[j^1], quad[j^3], a, b);
-     return (pack(&quad[d], sum));
-}
-
-static void
-debug_print(contlog_t operand, fracpart_t quad[], int j)
-{
-#ifdef DEBUG
-     int sh = REP_NBITS / 2;
-     __uintmax_t val = operand;
-     val -= val >> sh >> sh << sh << sh;
-     fprintf(stderr, " %0*jx", (int)(REP_NBITS/4), val);
-     for (int i = 0; i < 4; ++i) {
-	  __intmax_t val = quad[i^1];
-	  val -= val >> sh >> sh << sh << sh;
-	  fprintf(stderr, " %10jx", val);
-     }
-     fprintf(stderr, "%12g%12g",
-	     (double)quad[j^0]/quad[j^1],
-	     (double)quad[j^2]/quad[j^3]);
-     fprintf(stderr, "\n");
-#endif
-}
-
-/*
- * Translate operand into fraction frac[] = {numer, denom} that lies within the
- * interval of values represented by operand and has least numer+denom, for
- * presentation, not for calculation.  For even operand, frac may lie on the
- * boundary of the interval.
- */
-int
-contlog_decode_frac(contlog_t operand, ufracpart_t pair[])
-{
-     int nbits = REP_NBITS;
-     int j = 0;
-     int neg = 0;
-#if (CONTLOG_SIGNED)
-     if (operand >> SGNBIT_POS) {
-	  neg = 1;
-	  operand = -operand;
-     }
-     operand <<= 1;
-     --nbits;
-#endif
-     int improper = 0;
-     int zero = operand == 0;
-     int big = 0;
-#if (CONTLOG_UNBOUNDED)
-     if (operand >> SGNBIT_POS) {
-	  improper = 1;
-	  operand = -operand;
-     } else if (operand == 0)
-	  improper = neg;
-     operand <<= 1;
-     --nbits;
-#else
-     zero &= !neg;
-#if (!CONTLOG_SIGNED)
-     /*
-      * If the value is in [1/2, 1), negate operand to compute not numer/denom,
-      * but (denom-numer)/(2*numer), because that has smaller intermediate
-      * values and reduces overflow risk.  This eliminates overflow in the
-      * all-ones case.  When completed, transfrom the result back to
-      * numer/denom.
-      */
-     if (operand >> SGNBIT_POS) {
-	  big = 1;
-	  improper = 1;
-	  operand = -operand;
-     }
-#endif
-#endif
-
-     /*
-      * Find lower and upper bounds on the range of fractions represented by
-      * 'operand'.
-      */
-     ufracpart_t quad[] = {0, 1, 1, 0};
-     while (operand != 0) {
-	  /* Find the leftmost set bit position of operand and shift the bit
-	   * out. Negate the rest. */
-	  int shift = REP_NBITS - fls(operand);
-	  operand <<= shift;
-	  operand = -2 * operand;
-	  nbits -= shift + 1;
-	  /* Update quad to shrink range containing the result */
-	  j ^= 2;
-	  quad[j^0] += (quad[j^2] <<= shift);
-	  quad[j^1] += (quad[j^3] <<= shift);
-     }
-
-     /* Compute the simplest fraction in the interval, unless compution leads to
-      * overflow; in that case assume that the exact value is simplest.
-      */
-     ufracpart_t frac[] = {1, 0, 0, 1};
-     if (zero) {
-	  frac[0] = 0;
-	  frac[1] = 1;
-     } else {
-	  /*
-	   * Start the computation of contlog_find_simplest before computing
-	   * 'mid', the exact ratio, in order to reduce values so that
-	   * subsequent calculation doesn't overflow.
-	   */
-	  for (int lo = 0; quad[lo^2] != 0; lo ^= 3) {
-	       ufracpart_t val = quad[lo^3] / quad[lo^2];
-	       quad[lo^1] -= val * quad[lo^0];
-	       quad[lo^3] -= val * quad[lo^2];
-	       frac[lo^0] += val * frac[lo^2];
-	       frac[lo^1] += val * frac[lo^3];
-	       if (quad[lo^0] == 0 || val != quad[lo^1] / quad[lo^0])
-		    break;
-	  }
-	  /*
-	   * Ignoring that everything was just transformed according to 'frac',
-	   * compute 'mid', the exact ratio expressed by operand, and update
-	   * 'quad' to the values of the lower and upper bounds of the set of
-	   * values that map to operand.  Then find the simplest ratio in the
-	   * interval.
-	   */
-	  ufracpart_t mid[] = {quad[j^0] + quad[j^2], quad[j^1] + quad[j^3]};
-	  mid[0] <<= nbits;
-	  mid[1] <<= nbits;
-	  quad[j^0] += mid[0];
-	  quad[j^1] += mid[1];
-	  quad[j^2] += quad[j^2] + mid[0];
-	  quad[j^3] += quad[j^3] + mid[1];
-	  contlog_find_simplest(quad, nbits == 0, frac);
-     }
-     if (big) {
-	  /* We have (denom-numer)/(2*numer).  Transform back to numer/denom. */
-	  if (frac[1] % 2 == 0)
-	       frac[0] += (frac[1] /= 2);
-	  else
-	       frac[0] += frac[0] + frac[1];
-     }
-     pair[0] = frac[improper];
-     pair[1] = frac[!improper];
-     return (neg);
 }
 
 /*
@@ -575,12 +307,56 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
 	  fracpart_t sum[4];
 	  oversum(&sum[0], overflow, quad[j^0], quad[j^2]);
 	  oversum(&sum[2], overflow, quad[j^1], quad[j^3]);
-	  overflow = pack(&quad[j], sum);
+	  overflow = contlog_pack(&quad[j], sum);
 	  if (contlog_encode_bounds(&ces, quad))
 	       return (ces.arg);
 	  j ^= 2;
      }
      return (contlog_encode_exact(ces.max_shift, ces.lo&1, ces.arg, quad));
+}
+
+/*
+ * Translate operand into fraction frac[] = {numer, denom} that lies at the
+ * 'center' of the interval of values represented by operand.
+ */
+static int
+contlog_decode(contlog_t operand, ufracpart_t frac[])
+{
+     int neg = 0;
+#if (CONTLOG_SIGNED)
+     if (operand >> SGNBIT_POS) {
+	  neg = 1;
+	  operand = -operand;
+     }
+     operand <<= 1;
+#endif
+     int improper = 0;
+     int zero = operand == 0;
+#if (CONTLOG_UNBOUNDED)
+     if (operand >> SGNBIT_POS) {
+	  improper = 1;
+	  operand = -operand;
+     } else if (operand == 0)
+	  improper = neg;
+     operand <<= 1;
+#endif
+     improper ^= zero;
+     fracpart_t pair[] = {0, 1};
+     for (int lo = 1, lobit = operand ? ffs(operand) - 1: REP_NBITS;
+	  !zero && lobit < REP_NBITS + 1; ) {
+	  operand += lo ? (operand | -operand): (operand & -operand);
+	  int nextbit = operand ? ffs(operand) - 1: REP_NBITS + lo;
+	  lo ^= 1;
+	  pair[lo] += pair[lo^1];
+	  pair[lo] <<= nextbit - lobit - 1;
+	  lobit = nextbit;
+     }
+
+     fracpart_t mask = pair[0] | pair[1];
+     int shift = ffs(mask) - 1;
+     frac[improper^1] = pair[0] >> shift;
+     frac[improper^0] = pair[1] >> shift;
+     return (neg);
 }
 
 /* Compute x+y */
@@ -714,6 +490,59 @@ contlog_parallel(contlog_t op0, contlog_t op1)
      return (neg ? -val : val);
 }
 
+/*
+ * Compute the high-order part of the product of a and b, where 'a*b' computes
+ * the low-order part.
+ */
+static fracpart_t
+hiprod(fracpart_t a, fracpart_t b)
+{
+     const unsigned int halfbits = REP_NBITS / 2;
+     const fracpart_t halfmask = ((fracpart_t)1 << halfbits) - 1;
+     fracpart_t a_lo = a & halfmask;
+     fracpart_t a_hi = a >> halfbits;
+     fracpart_t b_lo = b & halfmask;
+     fracpart_t b_hi = b >> halfbits;
+     fracpart_t hilo = (((a_lo * b_lo) >> halfbits) & halfmask) + a_hi * b_lo;
+     fracpart_t lohi = (hilo & halfmask) + a_lo * b_hi;
+     return ((hilo >> halfbits) + (lohi >> halfbits) + a_hi * b_hi);
+}
+
+/*
+ * Compute (x1*y1 >> overflow) + x2*y2, capturing numerical overflow.
+ */
+static void
+dotprod(fracpart_t sum[], int overflow,
+	fracpart_t x1, fracpart_t x2,
+	fracpart_t y1, fracpart_t y2)
+{
+     fracpart_t prod1 = x1 * y1;
+     fracpart_t prod2 = x2 * y2;
+     sum[0] = hiprod(x1, y1);
+     if (overflow > 0) {
+	  int backflow = REP_NBITS - overflow;
+	  prod1 >>= overflow;
+	  prod1 &= ((fracpart_t)1 << backflow) - 1;
+	  prod1 |= sum[0] << backflow;
+	  sum[0] >>= overflow;
+     }
+     sum[1] = prod1 + prod2;
+     sum[0] += hiprod(x2, y2) + add_overflow(prod1, prod2, sum[1]);
+}
+
+/*
+ * Replace x = column j with ((a*x)>>overflow) + b*y,
+ * Return new overflow.
+ */
+static int
+contlog_axpby(int overflow, int j, int d, fracpart_t quad[], fracpart_t a, fracpart_t b)
+{
+     fracpart_t sum[4];
+     dotprod(&sum[0], overflow, quad[j^0], quad[j^2], a, b);
+     dotprod(&sum[2], overflow, quad[j^1], quad[j^3], a, b);
+     return (contlog_pack(&quad[d], sum));
+}
+
 /* Compute sqrt(numer/denom), where numer <= denom. */
 static contlog_t
 contlog_sqrt_frac(ufracpart_t numer, ufracpart_t denom)
@@ -736,8 +565,8 @@ contlog_sqrt_frac(ufracpart_t numer, ufracpart_t denom)
      int j = 2;
      do {
 	  /* Update quad to shrink range containing the result */
-	  overflow = axpby(overflow, j, j, quad, denom-numer, 2);
-	  overflow += axpby(overflow, j^2, j, quad, 0, numer);
+	  overflow = contlog_axpby(overflow, j, j, quad, denom-numer, 2);
+	  overflow += contlog_axpby(overflow, j^2, j, quad, 0, numer);
 	  j ^= 2;
      } while (!contlog_encode_bounds(&ces, quad));
      return (ces.arg);
@@ -751,9 +580,7 @@ contlog_sqrt(contlog_t operand)
      if (contlog_decode(operand, frac))
 	  return (MINVAL);
      int improper = CONTLOG_UNBOUNDED && frac[0] >= frac[1];
-     ufracpart_t numer = frac[improper];
-     ufracpart_t denom = frac[!improper];
-     contlog_t arg = contlog_sqrt_frac(numer, denom);
+     contlog_t arg = contlog_sqrt_frac(frac[improper], frac[!improper]);
      if (improper)
 	  arg = MINVAL - arg;
      return (arg);
@@ -774,8 +601,8 @@ contlog_sinarctan_unit(contlog_t operand)
      int j = 0;
      do {
 	  /* Update quad to shrink range containing the result */
-	  overflow = axpby(overflow, j, j, quad, numer, 0);
-	  overflow += axpby(overflow, j^2, j, quad, 2*denom, numer);
+	  overflow = contlog_axpby(overflow, j, j, quad, numer, 0);
+	  overflow += contlog_axpby(overflow, j^2, j, quad, 2*denom, numer);
 	  j ^= 2;
      } while (!contlog_encode_bounds(&ces, quad));
      return (ces.arg);
@@ -843,7 +670,7 @@ contlog_log1p_frac(fracpart_t numer, fracpart_t denom)
 	       s2 = odd_denom;
 	       odd_denom += 2 * denom;
 	  }
-	  overflow = axpby(overflow, j, j, quad, s1, s2);
+	  overflow = contlog_axpby(overflow, j, j, quad, s1, s2);
 	  j ^= 2;
      } while (!contlog_encode_bounds(&ces, quad));
      return (ces.arg);
@@ -917,7 +744,7 @@ contlog_expm(contlog_t operand)
 	       odd_denom += 2 * denom;
 	       ces.lo ^= 2;
 	  }
-	  overflow = axpby(overflow, j, j, quad, s1, s2);
+	  overflow = contlog_axpby(overflow, j, j, quad, s1, s2);
 	  j ^= 2;
      } while (j != 0 || !contlog_encode_bounds(&ces, quad));
      if (neg)
@@ -943,10 +770,10 @@ contlog_cssqrt(contlog_t operand, int n)
      int j = 0;
      do {
 	  /* Update quad to shrink range containing the result */
-	  overflow = axpby(overflow, j, j, quad, nn1_d, 0);
+	  overflow = contlog_axpby(overflow, j, j, quad, nn1_d, 0);
 	  nn1_d = n * (n+1) * denom;
 	  n += 2;
-	  overflow += axpby(overflow, j^2, j, quad, nn1_d-numer, numer);
+	  overflow += contlog_axpby(overflow, j^2, j, quad, nn1_d-numer, numer);
 	  j ^= 2;
      } while (!contlog_encode_bounds(&ces, quad));
      return (ces.arg);
@@ -964,4 +791,155 @@ contlog_t
 contlog_sisqrt(contlog_t operand)
 {
      return (contlog_cssqrt(operand, 2));
+}
+
+/*
+ * Given a pair of ratios that bound a range (open or closed), return the ratio
+ * with smallest elements in that range.  Lower bound is bound[0]/bound[1];
+ * upper bound is bound[2]/bound[3].  'frac' is a 4-element array; the result is
+ * stored in its first two elements.
+ */
+static void
+contlog_find_simplest(ufracpart_t bound[], int open, ufracpart_t frac[])
+{
+     int lo;
+     fracpart_t gap = 0, val;
+     for (lo = 0; gap == 0 && (bound[lo] != 0 || open); lo ^= 3) {
+	  val = gap = 1;
+	  if (bound[lo^2] != 0) {
+	       val = bound[lo^3] / bound[lo^2];
+	       bound[lo^3] %= bound[lo^2];
+	  }
+	  if (bound[lo] != 0) {
+	       gap = bound[lo^1] / bound[lo] - val;
+	       bound[lo^1] %= bound[lo];
+	       if (bound[lo^1] == 0 && open)
+		    --gap;	/* exclude range boundary */
+	  }
+	  if (gap != 0)
+	       ++val;
+	  frac[lo] += val * frac[lo^2];
+	  frac[lo^1] += val * frac[lo^3];
+     }
+     lo ^= 3;
+     lo &= 2;
+     frac[0] = frac[lo];
+     frac[1] = frac[lo^1];
+}
+
+/*
+ * Translate operand into fraction frac[] = {numer, denom} that lies within the
+ * interval of values represented by operand and has least numer+denom, for
+ * presentation, not for calculation.  For even operand, frac may lie on the
+ * boundary of the interval.
+ */
+int
+contlog_decode_frac(contlog_t operand, ufracpart_t pair[])
+{
+     int nbits = REP_NBITS;
+     int j = 0;
+     int neg = 0;
+#if (CONTLOG_SIGNED)
+     if (operand >> SGNBIT_POS) {
+	  neg = 1;
+	  operand = -operand;
+     }
+     operand <<= 1;
+     --nbits;
+#endif
+     int improper = 0;
+     int zero = operand == 0;
+     int big = 0;
+#if (CONTLOG_UNBOUNDED)
+     if (operand >> SGNBIT_POS) {
+	  improper = 1;
+	  operand = -operand;
+     } else if (operand == 0)
+	  improper = neg;
+     operand <<= 1;
+     --nbits;
+#else
+     zero &= !neg;
+#if (!CONTLOG_SIGNED)
+     /*
+      * If the value is in [1/2, 1), negate operand to compute not numer/denom,
+      * but (denom-numer)/(2*numer), because that has smaller intermediate
+      * values and reduces overflow risk.  This eliminates overflow in the
+      * all-ones case.  When completed, transfrom the result back to
+      * numer/denom.
+      */
+     if (operand >> SGNBIT_POS) {
+	  big = 1;
+	  improper = 1;
+	  operand = -operand;
+     }
+#endif
+#endif
+
+     /*
+      * Find lower and upper bounds on the range of fractions represented by
+      * 'operand'.
+      */
+     ufracpart_t quad[] = {0, 1, 1, 0};
+     while (operand != 0) {
+	  /* Find the leftmost set bit position of operand and shift the bit
+	   * out. Negate the rest. */
+	  int shift = REP_NBITS - fls(operand);
+	  operand <<= shift;
+	  operand = -2 * operand;
+	  nbits -= shift + 1;
+	  /* Update quad to shrink range containing the result */
+	  j ^= 2;
+	  quad[j^0] += (quad[j^2] <<= shift);
+	  quad[j^1] += (quad[j^3] <<= shift);
+     }
+
+     /* Compute the simplest fraction in the interval, unless compution leads to
+      * overflow; in that case assume that the exact value is simplest.
+      */
+     ufracpart_t frac[] = {1, 0, 0, 1};
+     if (zero) {
+	  frac[0] = 0;
+	  frac[1] = 1;
+     } else {
+	  /*
+	   * Start the computation of contlog_find_simplest before computing
+	   * 'mid', the exact ratio, in order to reduce values so that
+	   * subsequent calculation doesn't overflow.
+	   */
+	  for (int lo = 0; quad[lo^2] != 0; lo ^= 3) {
+	       ufracpart_t val = quad[lo^3] / quad[lo^2];
+	       quad[lo^1] -= val * quad[lo^0];
+	       quad[lo^3] -= val * quad[lo^2];
+	       frac[lo^0] += val * frac[lo^2];
+	       frac[lo^1] += val * frac[lo^3];
+	       if (quad[lo^0] == 0 || val != quad[lo^1] / quad[lo^0])
+		    break;
+	  }
+	  /*
+	   * Ignoring that everything was just transformed according to 'frac',
+	   * compute 'mid', the exact ratio expressed by operand, and update
+	   * 'quad' to the values of the lower and upper bounds of the set of
+	   * values that map to operand.  Then find the simplest ratio in the
+	   * interval.
+	   */
+	  ufracpart_t mid[] = {quad[j^0] + quad[j^2], quad[j^1] + quad[j^3]};
+	  mid[0] <<= nbits;
+	  mid[1] <<= nbits;
+	  quad[j^0] += mid[0];
+	  quad[j^1] += mid[1];
+	  quad[j^2] += quad[j^2] + mid[0];
+	  quad[j^3] += quad[j^3] + mid[1];
+	  contlog_find_simplest(quad, nbits == 0, frac);
+     }
+     if (big) {
+	  /* We have (denom-numer)/(2*numer).  Transform back to numer/denom. */
+	  if (frac[1] % 2 == 0)
+	       frac[0] += (frac[1] /= 2);
+	  else
+	       frac[0] += frac[0] + frac[1];
+     }
+     pair[0] = frac[improper];
+     pair[1] = frac[!improper];
+     return (neg);
 }
