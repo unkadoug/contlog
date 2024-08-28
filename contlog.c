@@ -41,8 +41,7 @@ short_fls(contlog_t x) {
 
 /*
  * Translate operand into fraction frac[] = {numer, denom} that lies at the
- * 'center' of the interval of values represented by operand.  If upscale, shift
- * both left as far as possible.  Otherwise, reduce fraction.
+ * 'center' of the interval of values represented by operand.
  */
 static int
 contlog_decode(contlog_t operand, ufracpart_t frac[])
