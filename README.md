@@ -273,31 +273,31 @@ implementation does that.  Those two values are scaled up, doubling
 both until one or both of them would overflow if doubled again.  The
 values are used to form a homographic function that is evaluated at
 the value of the other operand to compute the composition of the two
-operands.  So, for example, to compute x + y, first find that y = n/d,
+operands.  So, for example, to compute x + y, first find that y = n/m,
 and then form
 
-$$(n + dx) / (d + 0x)$$
+$$(n + mx) / (m + 0x)$$
 
-as an unusual expression of x + n/d.  The process of computing x + y
+as an unusual expression of x + n/m.  The process of computing x + y
 consists of two kinds of steps, which can be intermingled: input steps
 and output steps.  An input step is one that looks at the next bit of
 x and uses it to update four values.  Given the quad of coefficients
 
 ```
-p	r
+a	c
 -	-
-q	s
+b	d
 ```
 
-(where initially, p = n, q = r = d, and s = 0), suppose that the next
+(where initially, a = n, b = c = m, and d = 0), suppose that the next
 two unexamined bits of x are '11'.  Consuming the leading '1' halves
 the value of the rest of the bits, so some of values in the quad must
 be doubled to compensate:
 
 ```
-p	2r
+a	2c
 -	--
-q	2s
+b	2d
 ```
 
 Suppose instead that the next two unexamined bits of x are '10'.
@@ -305,9 +305,9 @@ Consuming the leading '1' reduces the value of the rest of the bits by
 one, so some of the values in the quad must be modified to compensate:
 
 ```
-p+r	r
+a+c	c
 ---	-
-q+s	s
+b+d	d
 ```
 
 Eventually, when all of x is consumed, the two values in the left
@@ -317,34 +317,34 @@ An output step is one that extracts a bit of the answer, possibly even
 before the input is complete.  For example, in the expression of the sum
 
 ```
-p	r
+a	c
 -	-
-q	s
+b	d
 ```
 
-the final result must be a value somewhere in the range (p/q, r/s).
+the final result must be a value somewhere in the range (a/b, c/d).
 Inputting more bits of x just pushes these lower and upper bounds
-closer together.  If, at some point, p >= 2*q, then the lower bound is
+closer together.  If, at some point, a >= 2*b, then the lower bound is
 at least 2, and it is safe to write a '1' bit to the output (because
 the result must begin with a '1'), as long as the values of the quad
 are updated to reflect that:
 
 
 ```
-p	r
+a	c
 --	--
-2q	2s
+2b	2d
 ```
 
-On the other hand, if r < 2*s, the upper bound is less than 2, then a
+On the other hand, if c < d*s, the upper bound is less than 2, then a
 '0' can be extracted and written to the output, with the quad
 transformed to
 
 
 ```
-p-q	r-s
+a-b	c-d
 ---	---
- q	 s
+ b	 d
 ```
 
 By performing as many output steps as possible between input steps,
