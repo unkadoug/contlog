@@ -39,6 +39,12 @@ short_fls(contlog_t x) {
 			unsigned long long: flsll\
 	  )(X)
 
+#define abs(X) _Generic((X),			\
+			default: abs,		\
+			long: labs,		\
+			long long : llabs	\
+	  )(X)
+
 /*
  * For n >= d, compute the floor(log2(n/d)) with bit operations.
  */
@@ -152,7 +158,7 @@ contlog_encode_state_init(struct contlog_encode_state *ces, fracpart_t quad[])
 {
      fracpart_t mask = 0;
      for (int i = 0; i < 4; ++i)
-	  mask |= quad[i] ^ (quad[i] >> 1);
+	  mask |= abs(quad[i]);
      int shift = REP_NBITS- 1 - fls(mask);
      for (int i = 0; i < 4; ++i)
 	  quad[i] <<= shift;
