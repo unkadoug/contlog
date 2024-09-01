@@ -304,12 +304,19 @@ contlog_arith(contlog_t operand, fracpart_t quad[])
 	   * out. */
 	  if (operand != 0) {
 	       int shift = REP_NBITS - fls(operand);
+	       overflow += shift;
 	       operand <<= shift;
 	       operand = -2 * operand;
 	       if (operand == 0 && j == 0)
-		    ++shift;
-	       overflow += shift;
+		    ++overflow;
 	  }
+
+	  /* Shift column j^2 as far left as possible. */
+	  int shift = min(overflow,
+			  REP_NBITS - 1 - fls(abs(quad[j^2]) | abs(quad[j^3])));
+	  quad[j^2] <<= shift;
+	  quad[j^3] <<= shift;
+	  overflow -= shift;
 
 	  /* Update quad to shrink range containing the result */
 	  fracpart_t sum[4];
