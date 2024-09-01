@@ -165,12 +165,6 @@ contlog_encode_state_init(struct contlog_encode_state *ces, fracpart_t quad[])
      ces->max_shift = MAGN_BITS;
      ces->lo = 0;
      ces->arg = 0;
-     if (quad[0] >= quad[1]) {
-	  /* result >= 1 */
-	  if (MINVAL || quad[1] != 0)
-	       ces->arg = 1;		/* result = 1 / result */
-	  ces->lo = 3;
-     }
 }
 
 /*
@@ -189,6 +183,14 @@ contlog_encode_bounds(struct contlog_encode_state *ces, fracpart_t quad[])
 	  contlog_swap_negate(max_shift, lo&1, arg, &quad[0]);
 	  contlog_swap_negate(max_shift, lo&1, arg, &quad[2]);
 	  lo ^= 3;
+     }
+
+     if (quad[lo] > quad[lo^1]) {
+	  if (arg == 0) {
+	       if (MINVAL || quad[lo^1] != 0)
+		    arg = 1;		/* result = 1 / result */
+	       lo ^= 3;
+	  }
      }
 
      /* Extract bits into arg until either arg is filled, or lower
