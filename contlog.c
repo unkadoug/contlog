@@ -92,18 +92,18 @@ contlog_encode_exact(int max_shift, int lo, contlog_t arg, fracpart_t pair[])
 	       return (0);	/* avoids too-much bit shift */
 #endif
 	  if (arg == 0) {
-		  if (MINVAL || pair[lo^1] != 0)
-			  arg = 1;		/* result = 1 / result */
-		  lo ^= 1;
+	       if (MINVAL || pair[lo^1] != 0)
+		    arg = 1;		/* result = 1 / result */
+	       lo ^= 1;
 	  } else {
-		  /*
-		   * 1 < result < 3, from encode_bounds.  Flip to a value in
-		   * (1/4, 1/2), shift, and process one more bit.
-		   */
-		  pair[lo] -= pair[lo^1];
-		  pair[lo^1] *= 2;
-		  arg = 2 * arg + (lo? -1: 1); /* result = (result - 1) / 2 */
-		  --max_shift;
+	       /*
+		* 1 < result < 3, from encode_bounds.  Flip to a value in
+		* (1/4, 1/2), shift, and process one more bit.
+		*/
+	       pair[lo] -= pair[lo^1];
+	       pair[lo^1] *= 2;
+	       arg = 2 * arg + (lo? -1: 1); /* result = (result - 1) / 2 */
+	       --max_shift;
 	  }
      }
 
@@ -365,8 +365,8 @@ contlog_add(contlog_t op0, contlog_t op1)
 {
      int neg = op0 < 0;
      if (neg) {
-	     op0 = -op0;
-	     op1 = -op1;
+	  op0 = -op0;
+	  op1 = -op1;
      }
      ufracpart_t frac[2];
      if (contlog_decode(op1, frac))
@@ -382,8 +382,8 @@ contlog_sub(contlog_t op0, contlog_t op1)
 {
      int neg = op0 < 0;
      if (neg) {
-	     op0 = -op0;
-	     op1 = -op1;
+	  op0 = -op0;
+	  op1 = -op1;
      }
      ufracpart_t frac[2];
      if (!contlog_decode(op1, frac))
@@ -560,7 +560,7 @@ contlog_sqrt_frac(ufracpart_t numer, ufracpart_t denom)
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
      ces.max_shift -= shift;
-  
+
      int overflow = 0;
      int j = 2;
      do {
