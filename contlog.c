@@ -562,19 +562,9 @@ contlog_axpby(int overflow, int j, int d, fracpart_t quad[], fracpart_t a, fracp
 static contlog_t
 contlog_sqrt_frac(ufracpart_t numer, ufracpart_t denom)
 {
-     /*
-      * Scale the argument up by a power of 4, to the range [1/4, 1), and the
-      * result down by a power of 2, to avoid the higher iteration count that
-      * comes with larger values.
-      */
-     int shift = lgratio(denom, numer) / 2;
-     int ffsd = min(2 * shift, ffs(denom) - 1);
-     numer <<= 2 * shift - ffsd;
-     denom >>= ffsd;
      fracpart_t quad[] = {2*numer, numer+denom, 1, 1};
      struct contlog_encode_state ces;
      contlog_encode_state_init(&ces, quad);
-     ces.max_shift -= shift;
 
      int overflow = 0;
      int j = 2;
@@ -591,11 +581,25 @@ contlog_sqrt_frac(ufracpart_t numer, ufracpart_t denom)
 contlog_t
 contlog_sqrt(contlog_t operand)
 {
-     ufracpart_t frac[2];
-     if (contlog_decode(operand, frac))
+     if (operand < 0)
 	  return (MINVAL);
-     int improper = CONTLOG_UNBOUNDED && frac[0] >= frac[1];
-     contlog_t arg = contlog_sqrt_frac(frac[improper], frac[!improper]);
+     if (operand == 0)
+	  return (0);
+     int zeroes = REP_NBITS + !CONTLOG_UNBOUNDED -
+	  fls(operand << CONTLOG_SIGNED);
+     int improper = zeroes == 0;
+     if (improper) {
+	  operand = MINVAL - operand;
+	  zeroes = REP_NBITS + !CONTLOG_UNBOUNDED -
+	       fls(operand << CONTLOG_SIGNED);
+     }
+     zeroes = (zeroes - 1) / 2;
+     operand <<= 2 * zeroes;
+     ufracpart_t frac[2];
+     contlog_decode(operand, frac);
+     contlog_t arg = contlog_sqrt_frac(frac[0], frac[1]);
+     if (zeroes > 0)
+	  arg = ((arg >> (zeroes - 1)) + 1) / 2;
      if (improper)
 	  arg = MINVAL - arg;
      return (arg);
