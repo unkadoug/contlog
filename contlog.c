@@ -49,14 +49,14 @@ short_fls(contlog_t x) {
  * For n >= d, compute the floor(log2(n/d)) with bit operations.
  */
 static int
-lgratio(fracpart_t n, fracpart_t d)
+lgratio(ufracpart_t n, ufracpart_t d)
 {
      if (n < d)
 	  return (0);
      int lg = fls(n) - fls(d);
-     n -= d << lg;
-     n >>= 8 * sizeof(n) - 1;
-     return (lg + n);
+     if (n < (d << lg))
+	  --lg;
+     return (lg);
 }
 
 /*
@@ -356,7 +356,7 @@ contlog_decode(contlog_t operand, ufracpart_t frac[])
      operand <<= 1;
 #endif
      improper ^= zero;
-     fracpart_t pair[] = {0, 1};
+     ufracpart_t pair[] = {0, 1};
      for (int lo = 1, lobit = operand ? ffs(operand) - 1: REP_NBITS;
 	  !zero && lobit < REP_NBITS + 1; ) {
 	  operand += lo ? (operand | -operand): (operand & -operand);
